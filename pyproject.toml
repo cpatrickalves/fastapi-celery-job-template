@@ -1,0 +1,31 @@
+[project]
+name = "genai-launchpad"
+version = "1.0.0"
+description = "GenAI Launchpad by Datalumina"
+requires-python = ">=3.12"
+dependencies = [
+    "alembic>=1.16.4",
+    "celery>=5.5.3",
+    "fastapi>=0.116.1",
+    "instructor>=1.8.3",
+    "psycopg2-binary>=2.9.10",
+    "pydantic>=2.11.7",
+    "pydantic-ai>=1.0.15",
+    "python-dotenv>=1.1.1",
+    "python-frontmatter>=1.1.0",
+    "redis>=6.4.0",
+    "tiktoken>=0.11.0",
+    "uvicorn>=0.35.0",
+]
+
+[dependency-groups]
+dev = [
+    "graphviz>=0.20.3",
+    "ipykernel>=6.29.5",
+    "ipython>=9.3.0",
+    "nest-asyncio>=1.6.0",
+    "ruff>=0.11.13",
+]
+
+[tool.ruff]
+exclude = [".venv", "app/core/commands", "app/alembic", ".sh"]

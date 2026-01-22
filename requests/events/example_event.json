@@ -1,0 +1,8 @@
+{
+  "event_type": "example",
+  "message": "Hello, World! This is a test message.",
+  "metadata": {
+    "source": "playground",
+    "version": "1.0"
+  }
+}
