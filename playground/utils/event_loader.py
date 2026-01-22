@@ -17,5 +17,5 @@ class EventLoader:
                 return event_data
         except json.JSONDecodeError as e:
             raise ValueError(f"Error parsing JSON file {file_path}: {e}")
-        except IOError as e:
+        except IOError:
             raise ValueError(f"Event '{event_key}.json' not found in events folder")
