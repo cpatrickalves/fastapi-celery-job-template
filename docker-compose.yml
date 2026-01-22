@@ -1,0 +1,98 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: "${PROJECT_NAME}_api"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8080:8080"
+    restart: always
+    volumes:
+      - ./app/:/app
+    environment:
+      - PROJECT_NAME=${PROJECT_NAME}
+      - DATABASE_HOST=${POSTGRES_HOST}
+      - DATABASE_NAME=${POSTGRES_DB}
+      - DATABASE_USER=postgres
+      - DATABASE_PASSWORD=${POSTGRES_PASSWORD}
+      - DATABASE_PORT=${POSTGRES_PORT}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+
+  celery_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: "${PROJECT_NAME}_celery_worker"
+    command: sh -c "watchmedo auto-restart --directory=./ --pattern='*.py' --recursive -- celery -A worker.config worker --loglevel=info --concurrency=1"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      api:
+        condition: service_started
+    restart: always
+    volumes:
+      - ./app:/app
+    environment:
+      - PROJECT_NAME=${PROJECT_NAME}
+      - DATABASE_HOST=${POSTGRES_HOST}
+      - DATABASE_NAME=${POSTGRES_DB}
+      - DATABASE_USER=postgres
+      - DATABASE_PASSWORD=${POSTGRES_PASSWORD}
+      - DATABASE_PORT=${POSTGRES_PORT}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+
+  redis:
+    container_name: "${PROJECT_NAME}_redis"
+    healthcheck:
+      interval: 30s
+      retries: 5
+      test:
+        - CMD
+        - redis-cli
+        - ping
+      timeout: 10s
+    image: redis:latest
+    ports:
+      - "127.0.0.1:6379:6379"
+    restart: always
+    volumes:
+      - redis_data:/data
+
+  db:
+    container_name: "${PROJECT_NAME}_db"
+    image: postgres:18-alpine
+    restart: unless-stopped
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "pg_isready",
+          "-U",
+          "postgres",
+          "-h",
+          "localhost"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: postgres
+    ports:
+      - "127.0.0.1:5432:5432"
+
+volumes:
+  db_data:
+  redis_data:
