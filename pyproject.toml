@@ -7,14 +7,13 @@ dependencies = [
     "alembic>=1.16.4",
     "celery>=5.5.3",
     "fastapi>=0.116.1",
-    "instructor>=1.8.3",
     "psycopg2-binary>=2.9.10",
     "pydantic>=2.11.7",
-    "pydantic-ai>=1.0.15",
+    "pydantic-settings>=2.10.1",
     "python-dotenv>=1.1.1",
     "python-frontmatter>=1.1.0",
     "redis>=6.4.0",
-    "tiktoken>=0.11.0",
+    "tomli>=2.4.0",
     "uvicorn>=0.35.0",
 ]
 
