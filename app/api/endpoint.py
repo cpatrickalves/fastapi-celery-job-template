@@ -56,7 +56,7 @@ class EventStatusResponse(BaseModel):
     completed_at: str | None = None
 
 
-@router.post("/", response_model=EventResponse, status_code=HTTPStatus.ACCEPTED)
+@router.post("", response_model=EventResponse, status_code=HTTPStatus.ACCEPTED)
 def submit_event(
     data: dict,
     session: Session = Depends(db_session),
@@ -118,11 +118,13 @@ def submit_event(
 
     # Return acceptance response
     return Response(
-        content=json.dumps({
-            "event_id": str(event.id),
-            "status": "pending",
-            "message": "Event accepted for processing",
-        }),
+        content=json.dumps(
+            {
+                "event_id": str(event.id),
+                "status": "pending",
+                "message": "Event accepted for processing",
+            }
+        ),
         status_code=HTTPStatus.ACCEPTED,
         media_type="application/json",
     )

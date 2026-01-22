@@ -6,6 +6,8 @@ It shows the basic structure: inheriting from BaseWorkflow,
 using the register_workflow decorator, and implementing process().
 """
 
+import time
+
 from core.context import WorkflowContext
 from schemas.example_schema import ExampleEventSchema
 from workflows.base import BaseWorkflow
@@ -36,6 +38,11 @@ class ExampleWorkflow(BaseWorkflow):
 
         context.log(f"Received event with message: {event['message']}")
 
+        # Simulate long-running process
+        context.log("Starting 20-second processing simulation...")
+        time.sleep(20)
+        context.log("Processing simulation complete")
+
         # Perform transformation
         processed_message = event["message"].upper()
         word_count = len(event["message"].split())
@@ -43,12 +50,14 @@ class ExampleWorkflow(BaseWorkflow):
         context.log(f"Processing complete: {word_count} words processed")
 
         # Set the result
-        context.set_result({
-            "original": event["message"],
-            "processed": processed_message,
-            "word_count": word_count,
-            "status": "success",
-        })
+        context.set_result(
+            {
+                "original": event["message"],
+                "processed": processed_message,
+                "word_count": word_count,
+                "status": "success",
+            }
+        )
 
     def before_process(self, context: WorkflowContext) -> None:
         """Hook executed before processing.

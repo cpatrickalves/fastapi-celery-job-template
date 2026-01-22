@@ -11,4 +11,8 @@ It uses FastAPI's APIRouter to group related endpoints and provide a prefix.
 
 router = APIRouter()
 
-router.include_router(endpoint.router, prefix="/events", tags=["events"])
+router.include_router(
+    endpoint.router,
+    prefix="/events",
+    tags=["events"],
+)
