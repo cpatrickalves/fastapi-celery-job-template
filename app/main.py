@@ -1,4 +1,4 @@
-"""GenAI Launchpad API - Event-driven workflow processing.
+"""Launchpad API - Event-driven workflow processing.
 
 This is the main entry point for the FastAPI application that provides
 REST API endpoints for event-driven workflow processing.

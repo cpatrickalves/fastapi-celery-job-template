@@ -1,91 +1,166 @@
 # GenAI Launchpad
 
-With AI innovation moving beyond the speed of light, your time to develop is now more precious than ever. That's why
-we've built the GenAI Launchpad – your secret weapon to shipping production-ready AI apps, faster.
-
-## Introduction
-
-Welcome to the GenAI Launchpad – your all-in-one repository for building powerful, scalable Generative AI applications.
-Whether you're prototyping or deploying at scale, this Docker-based setup has you covered with everything from
-job-driven architecture to seamless AI workflow integration.
-
-No need to start from scratch or waste time on repetitive configurations. The GenAI Launchpad is engineered to get you
-up and running fast, with a flexible design that fits your workflow – all while keeping things production-ready from day
-one.
-
-> **Note**: This repository has two main branches:
-> - [`main`](https://github.com/datalumina/genai-launchpad/tree/main): A stripped-down version with just the core
-    components, perfect for starting new projects.
-> - [`quickstart`](https://github.com/datalumina/genai-launchpad/tree/boilerplate): Contains a complete example
-    implementation to demonstrate the Launchpad's capabilities
->
-> We recommend following the Accelerator Course first to understand the example implementation in the `quickstart` branch.
-
 ## Overview
 
-The GenAI Launchpad isn't just another framework – it's your shortcut to a production-ready AI infrastructure. Built for
-speed and control, its modular architecture brings together the best tools and design patterns to help you deploy faster
-without compromising flexibility.
+**Launchpad** is a template for job-driven asynchronous processing, designed for production applications that require scalable and reliable background processing.
 
-Here's what you're working with:
+The template offers a modular architecture that integrates the best tools and design patterns to enable agile development without compromising flexibility. Through a distributed queue system and asynchronous workers, Launchpad processes jobs efficiently while maintaining complete traceability of each task's lifecycle.
 
-- FastAPI for lightning-fast API development
-- Celery for background task processing
-- PostgreSQL to handle all your data, including embeddings
-- Redis for fast task queue management
-- Caddy for reverse proxy and automatic HTTPS
+Ideal for applications that need to process long-running tasks, complex workflows, or operations that cannot block HTTP requests, the template provides a solid foundation for building robust and scalable systems.
 
-All services are containerized using Docker, ensuring consistency across development and deployment environments.
+## Features
 
-## Key Features
-
-- **Job-Driven Architecture**: Built-in support for designing and implementing job-driven async processing systems.
-- **AI Workflow Support**: Pre-configured setup for integrating AI models and workflows.
-- **Scalability**: Designed with scalability in mind, allowing easy expansion as your application grows.
-- **Flexibility**: Modular architecture that allows for easy customization and extension.
-- **Production-Ready**: Includes essential components for a production environment, including logging, monitoring, and
-  security features.
-- **Rapid Development**: Boilerplate code and project structure to accelerate development.
-- **Docker-Based Deployment**: Complete Docker-based strategy for straightforward deployment.
-- **Supabase**: Full self-hosted Supabase included.
-
-## Documentation
-
-The docs can be found at:
-https://launchpad.datalumina.com/
+* **REST API with FastAPI**: Endpoints for job submission and querying
+* **Asynchronous Processing**: Celery workers for background task execution
+* **Queue System**: Redis for efficient task queue management
+* **Status Tracking**: Complete lifecycle tracking of jobs (pending, processing, completed, failed)
+* **Data Persistence**: PostgreSQL for storing jobs, results, and execution context
+* **Automatic Migrations**: Alembic for database schema versioning and migration
+* **Health Checks**: Monitoring endpoints for service health verification
+* **Containerization**: Docker Compose for orchestrating all services
+* **Hot Reload**: Development with auto-reload for both API and workers
 
 ## Project Structure
 
-The Launchpad follows a logical, scalable, and reasonably standardized project structure for building job-driven GenAI
-apps.
-
-```text
-├── app
-│   ├── alembic            # Database migration scripts
-│   ├── api                # API endpoints and routers
-│   ├── worker             # Background task definitions
-│   ├── core               # Components for workflow and task processing
-│   ├── database           # Database models and utilities
-│   ├── prompts            # Prompt templates for AI models
-│   ├── schemas            # Job schemas
-│   ├── services           # Business logic and services
-│   ├── workflows          # AI workflow definitions
-├── docker                 # Docker configuration files
-├── playground             # Run experiments for workflow design
-└── requests               # Job definitions and handlers
+```bash
+.
+├── CLAUDE.md                # Documentation for AI assistant
+├── Dockerfile               # Docker configuration for API and workers
+├── README.md                # This file
+├── app/                     # Application source code
+│   ├── alembic.ini          # Alembic configuration for migrations
+│   ├── api/                 # REST API endpoints
+│   ├── core/                # Core components (context, commands)
+│   ├── database/            # Models, sessions, and migrations
+│   ├── main.py              # FastAPI application entry point
+│   ├── schemas/             # Pydantic schemas for validation
+│   ├── settings.py          # Application settings
+│   ├── start.sh             # Container initialization script
+│   ├── utils/               # Utilities (logger, health checks)
+│   ├── worker/              # Celery configuration and tasks
+│   └── workflows/           # Job processing workflows
+├── docker-compose.yml       # Service orchestration (API, workers, DB, Redis)
+├── docs/                    # Detailed documentation
+│   ├── 01-getting-started.md
+│   ├── 02-architecture.md
+│   └── 03-development.md
+├── playground/              # Scripts for testing and experimentation
+│   ├── http_playground.py
+│   ├── utils/
+│   └── workflow_playground.py
+├── pyproject.toml           # Project configuration and dependencies (uv)
+└── scripts/                 # Helper scripts
+    ├── logs.sh              # Log viewing
+    ├── start.sh             # Service initialization
+    └── stop.sh              # Service shutdown
 ```
 
-## Support
+## Prerequisites
 
-For support, questions, and collaboration related to the GenAI Launchpad:
+* **Python 3.12+**: Programming language
+* **Docker**: For service containerization
+* **Docker Compose**: For container orchestration
+* **uv**: Python package manager (optional, for local development)
 
-1. **Discord Community**: Join our [Discord server](https://discord.gg/H67KUD6vXe) for quick questions, real-time
-   support, and feature discussions. This is the fastest way to get help and connect with other users.
+## Technologies Used
 
-2. **GitHub Issues**: For bug reports and technical problems, please open an issue on
-   our [GitHub repository](https://github.com/datalumina/genai-launchpad/issues). This helps us track issues
-   systematically and builds a searchable knowledge base for the community.
+* **FastAPI**: Modern, high-performance web framework
+* **Celery**: Distributed queue system for asynchronous processing
+* **PostgreSQL**: Relational database
+* **Redis**: Message broker and cache
+* **Alembic**: Database migration management
+* **Pydantic**: Data validation and settings
+* **Uvicorn**: High-performance ASGI server
+* **Loguru**: Advanced logging system
 
-3. **Email**: For private inquiries or matters that don't fit Discord or GitHub, you can reach us at
-   launchpad@datalumina.com. However, we encourage using Discord or GitHub for most support needs to benefit the entire
-   community.
+## Installation
+
+### 1. Clone the repository
+
+```bash
+git clone <repository-url>
+cd genai-launchpad
+```
+
+### 2. Configure environment variables
+
+Copy the `.env.example` file to `.env` and configure the required variables:
+
+```bash
+cp .env.example .env
+```
+
+### 3. Start the services
+
+```bash
+./scripts/start.sh
+```
+
+This command will:
+- Build Docker images
+- Start PostgreSQL, Redis, API, and Celery Workers
+- Run database migrations automatically
+
+## Running the Project
+
+### Check service status
+
+```bash
+docker compose -p launchpad ps
+```
+
+### Access API documentation
+
+After starting the services, access:
+
+* **Swagger UI**: http://localhost:8080/docs
+* **ReDoc**: http://localhost:8080/redoc
+
+### Submit a job
+
+```bash
+curl -X POST http://localhost:8080/jobs/example \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Hello World"}'
+```
+
+Expected response:
+```json
+{
+  "job_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "pending",
+  "created_at": "2024-01-23T15:30:00"
+}
+```
+
+### Query job status
+
+```bash
+curl http://localhost:8080/jobs/{job_id}
+```
+
+### View logs
+
+```bash
+# Logs from all services
+./scripts/logs.sh
+
+# Logs from a specific service
+docker compose -p launchpad logs -f api
+docker compose -p launchpad logs -f celery_worker
+```
+
+### Stop the services
+
+```bash
+./scripts/stop.sh
+```
+
+## Additional Documentation
+
+For detailed information about architecture, development, and troubleshooting, see:
+
+1. **[Getting Started](docs/01-getting-started.md)** - Quick start guide and project structure
+2. **[Architecture](docs/02-architecture.md)** - System design, components, and data flow
+3. **[Development](docs/03-development.md)** - How to add new job types and API reference
+
