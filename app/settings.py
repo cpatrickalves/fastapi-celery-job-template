@@ -7,16 +7,13 @@ allowing for easy loading from environment variables or a .env file.
 
 from __future__ import annotations
 
-import logging
 import sys
 from pathlib import Path
 from typing import Any
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 import tomli
-
-
-logger = logging.getLogger(__name__)
+from utils.logger import logger
 
 
 class Settings(BaseSettings):
@@ -56,9 +53,9 @@ class Settings(BaseSettings):
         try:
             super().__init__(**values)
 
-            print("\n" + "=" * 50)
-            print(f"ENVIRONMENT: {self.ENVIRONMENT.upper()}")
-            print("=" * 50 + "\n")
+            logger.info("=" * 50)
+            logger.info(f"ENVIRONMENT: {self.ENVIRONMENT.upper()}")
+            logger.info("=" * 50)
 
             # Skip validation in testing environment
             if self.ENVIRONMENT == "testing":

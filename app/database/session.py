@@ -1,10 +1,10 @@
-import logging
 from typing import Generator
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
 
 from database.database_utils import DatabaseUtils
+from utils.logger import logger
 
 """
 Session Module
@@ -29,7 +29,7 @@ def db_session() -> Generator:
         session.commit()
     except Exception as ex:
         session.rollback()
-        logging.error(ex)
+        logger.error(ex)
         raise ex
     finally:
         session.close()
