@@ -1,20 +1,20 @@
 """
-Event Submission Endpoint Module
+Job Submission Endpoint Module
 
-This module defines the FastAPI endpoints for event ingestion and retrieval.
+This module defines the FastAPI endpoints for job ingestion and retrieval.
 It implements the "accept-and-delegate" pattern where:
-- Events are immediately accepted if valid
+- Jobs are immediately accepted if valid
 - Processing is handled asynchronously via Celery
 - A 202 Accepted response indicates successful queueing
 
 Endpoints:
-- POST /: Submit a new event for processing
-- GET /{event_id}: Retrieve event status and results
+- POST /{job_type}: Submit a new job for processing (typed per job_type)
+- GET /{job_id}: Retrieve job status and results
 """
 
 import json
 from http import HTTPStatus
-from typing import Any
+from typing import Any, Callable, Type
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -22,32 +22,33 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from starlette.responses import Response
 
-from database.event import Event
+from database.job import Job
 from database.repository import GenericRepository
 from database.session import db_session
-from schemas.registry import validate_event, schema_exists
+from schemas.base import BaseJobSchema
+from schemas.registry import get_all_schemas
 from worker.config import celery_app
 from workflows.registry import workflow_exists
 
-# Import schemas to ensure they're registered
+# Import schemas to ensure they're registered before endpoint generation
 import schemas.example_schema  # noqa: F401
 
 router = APIRouter()
 
 
-class EventResponse(BaseModel):
-    """Response model for event submission."""
+class JobResponse(BaseModel):
+    """Response model for job submission."""
 
-    event_id: str
+    job_id: str
     status: str
     message: str
 
 
-class EventStatusResponse(BaseModel):
-    """Response model for event status query."""
+class JobStatusResponse(BaseModel):
+    """Response model for job status query."""
 
-    event_id: str
-    event_type: str
+    job_id: str
+    job_type: str
     status: str
     result: Any | None = None
     error: str | None = None
@@ -56,113 +57,134 @@ class EventStatusResponse(BaseModel):
     completed_at: str | None = None
 
 
-@router.post("", response_model=EventResponse, status_code=HTTPStatus.ACCEPTED)
-def submit_event(
-    data: dict,
-    session: Session = Depends(db_session),
-) -> Response:
-    """Submit an event for asynchronous processing.
-
-    This endpoint receives events, validates them against registered schemas,
-    stores them in the database, and queues them for processing.
+def create_job_endpoint(
+    job_type: str, schema_class: Type[BaseJobSchema]
+) -> Callable[..., Response]:
+    """Factory function to create a typed endpoint for a specific job type.
 
     Args:
-        data: The event data containing at minimum an 'event_type' field
-        session: Database session injected by FastAPI dependency
+        job_type: The job type identifier
+        schema_class: The Pydantic schema class for this job type
 
     Returns:
-        Response: 202 Accepted response with event_id
-
-    Raises:
-        HTTPException: 400 if event_type is missing or invalid
-        HTTPException: 422 if event data validation fails
+        A FastAPI endpoint function with the correct type annotations
     """
-    # Extract and validate event_type
-    event_type = data.get("event_type")
-    if not event_type:
-        raise HTTPException(
-            status_code=HTTPStatus.BAD_REQUEST,
-            detail="Event data must contain 'event_type' field",
-        )
 
-    # Check if workflow exists for this event type
-    if not workflow_exists(event_type):
-        raise HTTPException(
-            status_code=HTTPStatus.BAD_REQUEST,
-            detail=f"No workflow registered for event_type '{event_type}'",
-        )
+    def endpoint(
+        data: BaseJobSchema,  # Will be overwritten by __annotations__
+        session: Session = Depends(db_session),
+    ) -> Response:
+        """Submit a job for asynchronous processing."""
+        # Convert validated Pydantic model to dict for storage
+        job_data = data.model_dump(mode="json")
 
-    # Validate event data against schema if registered
-    if schema_exists(event_type):
-        try:
-            validated = validate_event(data)
-            event_data = validated.model_dump(mode="json")
-        except Exception as e:
+        # Verify workflow exists for this job type
+        if not workflow_exists(job_type):
             raise HTTPException(
-                status_code=HTTPStatus.UNPROCESSABLE_ENTITY,
-                detail=f"Event validation failed: {str(e)}",
+                status_code=HTTPStatus.BAD_REQUEST,
+                detail=f"No workflow registered for job_type '{job_type}'",
             )
-    else:
-        event_data = data
 
-    # Store event in database
-    repository = GenericRepository(session=session, model=Event)
-    event = Event(data=event_data, event_type=event_type)
-    repository.create(obj=event)
+        # Store job in database
+        repository = GenericRepository(session=session, model=Job)
+        job = Job(data=job_data, job_type=job_type)
+        repository.create(obj=job)
 
-    # Queue processing task
-    celery_app.send_task(
-        "process_incoming_event",
-        args=[str(event.id)],
-    )
+        # Queue processing task
+        celery_app.send_task("process_job", args=[str(job.id)])
 
-    # Return acceptance response
-    return Response(
-        content=json.dumps(
-            {
-                "event_id": str(event.id),
-                "status": "pending",
-                "message": "Event accepted for processing",
-            }
-        ),
-        status_code=HTTPStatus.ACCEPTED,
-        media_type="application/json",
-    )
+        # Return acceptance response
+        return Response(
+            content=json.dumps(
+                {
+                    "job_id": str(job.id),
+                    "status": "pending",
+                    "message": f"Job '{job_type}' accepted for processing",
+                }
+            ),
+            status_code=HTTPStatus.ACCEPTED,
+            media_type="application/json",
+        )
+
+    # Set dynamic type annotation for FastAPI to use in OpenAPI generation
+    endpoint.__annotations__ = {
+        "data": schema_class,
+        "session": Session,
+        "return": Response,
+    }
+    endpoint.__name__ = f"submit_{job_type}_job"
+    endpoint.__doc__ = f"Submit a {job_type} job for asynchronous processing."
+
+    return endpoint
 
 
-@router.get("/{event_id}", response_model=EventStatusResponse)
-def get_event_status(
-    event_id: UUID,
+def register_job_endpoints() -> None:
+    """Register a typed endpoint for each registered schema.
+
+    This function iterates over all registered schemas and creates
+    a dedicated POST endpoint for each job type with proper OpenAPI
+    documentation.
+    """
+    schemas = get_all_schemas()
+
+    for job_type, schema_class in schemas.items():
+        endpoint_func = create_job_endpoint(job_type, schema_class)
+
+        # Extract description from schema docstring or use default
+        description = (
+            schema_class.__doc__
+            or f"Submit a {job_type} job for asynchronous processing."
+        )
+
+        router.add_api_route(
+            path=f"/{job_type}",
+            endpoint=endpoint_func,
+            methods=["POST"],
+            response_model=JobResponse,
+            status_code=HTTPStatus.ACCEPTED,
+            tags=[job_type],
+            summary=f"Submit {job_type} job",
+            description=description,
+        )
+
+
+# Register all job type endpoints
+register_job_endpoints()
+
+
+@router.get("/{job_id}", response_model=JobStatusResponse, tags=["jobs"])
+def get_job_status(
+    job_id: UUID,
     session: Session = Depends(db_session),
-) -> EventStatusResponse:
-    """Get the status and result of an event.
+) -> JobStatusResponse:
+    """Get the status and result of a job.
 
     Args:
-        event_id: The UUID of the event to retrieve
+        job_id: The UUID of the job to retrieve
         session: Database session injected by FastAPI dependency
 
     Returns:
-        EventStatusResponse: The event status and results
+        JobStatusResponse: The job status and results
 
     Raises:
-        HTTPException: 404 if event not found
+        HTTPException: 404 if job not found
     """
-    repository = GenericRepository(session=session, model=Event)
-    event = repository.get(id=event_id)
+    repository = GenericRepository(session=session, model=Job)
+    job = repository.get(id=job_id)
 
-    if event is None:
+    if job is None:
         raise HTTPException(
             status_code=HTTPStatus.NOT_FOUND,
-            detail=f"Event with id '{event_id}' not found",
+            detail=f"Job with id '{job_id}' not found",
         )
 
-    return EventStatusResponse(
-        event_id=str(event.id),
-        event_type=event.event_type,
-        status=event.status,
-        result=event.result,
-        error=event.error,
-        created_at=event.created_at.isoformat() if event.created_at else None,
-        started_at=event.started_at.isoformat() if event.started_at else None,
-        completed_at=event.completed_at.isoformat() if event.completed_at else None,
+    return JobStatusResponse(
+        job_id=str(job.id),
+        job_type=job.job_type,
+        status=job.status,
+        result=job.result,
+        error=job.error,
+        created_at=job.created_at.isoformat() if job.created_at else None,
+        started_at=job.started_at.isoformat() if job.started_at else None,
+        completed_at=job.completed_at.isoformat() if job.completed_at else None,
     )

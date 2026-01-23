@@ -9,7 +9,7 @@ from database.database_utils import DatabaseUtils
 from database.session import Base
 
 # This import is required for autogenerate support
-from database.event import *
+from database.job import *  # noqa: F401, F403
 
 """
 Alembic Environment Module

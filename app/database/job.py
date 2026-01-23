@@ -1,9 +1,9 @@
 """
-Event Database Model Module
+Job Database Model Module
 
-This module defines the SQLAlchemy model for storing events in the database.
+This module defines the SQLAlchemy model for storing jobs in the database.
 It provides storage for:
-1. Raw event data (data column): Stores the original incoming event
+1. Raw job data (data column): Stores the original incoming job
 2. Processing results (result column): Stores the workflow output
 3. Status tracking: Processing state and timestamps
 4. Context/logs (context column): Stores execution context for debugging
@@ -18,43 +18,43 @@ from sqlalchemy.dialects.postgresql import UUID
 from database.session import Base
 
 
-class Event(Base):
-    """SQLAlchemy model for storing events and their processing results.
+class Job(Base):
+    """SQLAlchemy model for storing jobs and their processing results.
 
-    This model serves as the primary storage for incoming events,
+    This model serves as the primary storage for incoming jobs,
     their processing status, and results.
 
     Attributes:
-        id: Unique identifier for the event
-        event_type: Type of event, used to route to appropriate workflow
-        data: Raw event data as received from the API
+        id: Unique identifier for the job
+        job_type: Type of job, used to route to appropriate workflow
+        data: Raw job data as received from the API
         result: Processing results from the workflow
         status: Current processing status (pending, processing, completed, failed)
         error: Error message if processing failed
         context: Full workflow context for debugging (logs, metadata)
-        created_at: When the event was created
+        created_at: When the job was created
         started_at: When processing started
         completed_at: When processing completed
-        updated_at: When the event was last updated
+        updated_at: When the job was last updated
     """
 
-    __tablename__ = "events"
+    __tablename__ = "jobs"
 
     id = Column(
         UUID(as_uuid=True),
         primary_key=True,
         default=uuid.uuid1,
-        doc="Unique identifier for the event",
+        doc="Unique identifier for the job",
     )
-    event_type = Column(
+    job_type = Column(
         String(150),
         nullable=False,
         index=True,
-        doc="Type of event, used to route to appropriate workflow",
+        doc="Type of job, used to route to appropriate workflow",
     )
     data = Column(
         JSON,
-        doc="Raw event data as received from the API endpoint",
+        doc="Raw job data as received from the API endpoint",
     )
     result = Column(
         JSON,
@@ -81,7 +81,7 @@ class Event(Base):
     created_at = Column(
         DateTime,
         default=datetime.now,
-        doc="Timestamp when the event was created",
+        doc="Timestamp when the job was created",
     )
     started_at = Column(
         DateTime,
@@ -97,10 +97,10 @@ class Event(Base):
         DateTime,
         default=datetime.now,
         onupdate=datetime.now,
-        doc="Timestamp when the event was last updated",
+        doc="Timestamp when the job was last updated",
     )
 
     # Composite index for common queries
     __table_args__ = (
-        Index("ix_events_status_created", "status", "created_at"),
+        Index("ix_jobs_status_created", "status", "created_at"),
     )

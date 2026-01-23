@@ -13,6 +13,5 @@ router = APIRouter()
 
 router.include_router(
     endpoint.router,
-    prefix="/events",
-    tags=["events"],
+    prefix="/jobs",
 )

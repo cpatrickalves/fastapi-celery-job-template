@@ -1,7 +1,7 @@
 """
 HTTP Playground
 
-This playground simulates sending events to the API via HTTP requests,
+This playground simulates sending jobs to the API via HTTP requests,
 performs polling to check the status, and displays the results.
 Similar to the examples.http file but as a Python script.
 """
@@ -14,7 +14,7 @@ import httpx
 
 
 class HTTPPlayground:
-    """Client for testing the event API with polling support."""
+    """Client for testing the job API with polling support."""
 
     def __init__(self, base_url: str = "http://127.0.0.1:8080"):
         """Initialize the HTTP playground client.
@@ -23,32 +23,34 @@ class HTTPPlayground:
             base_url: Base URL of the API server
         """
         self.base_url = base_url
-        self.events_endpoint = f"{base_url}/events"
+        self.jobs_endpoint = f"{base_url}/jobs"
 
-    def submit_event(self, event_data: Dict) -> Optional[Dict]:
-        """Submit an event to the API.
+    def submit_job(self, job_type: str, job_data: Dict) -> Optional[Dict]:
+        """Submit a job to the API.
 
         Args:
-            event_data: The event data to submit
+            job_type: The type of job to submit (determines endpoint)
+            job_data: The job data to submit (without job_type field)
 
         Returns:
-            Response data with event_id, status, and message
+            Response data with job_id, status, and message
         """
-        print(f"📤 Submitting event to {self.events_endpoint}")
-        print(f"Event data: {json.dumps(event_data, indent=2)}")
+        endpoint = f"{self.jobs_endpoint}/{job_type}"
+        print(f"Submitting job to {endpoint}")
+        print(f"Job data: {json.dumps(job_data, indent=2)}")
         print()
 
         try:
             response = httpx.post(
-                self.events_endpoint,
-                json=event_data,
+                endpoint,
+                json=job_data,
                 headers={"Content-Type": "application/json"},
             )
             response.raise_for_status()
 
             result = response.json()
-            print(f"✅ Event submitted successfully!")
-            print(f"Event ID: {result['event_id']}")
+            print("Job submitted successfully!")
+            print(f"Job ID: {result['job_id']}")
             print(f"Status: {result['status']}")
             print(f"Message: {result['message']}")
             print()
@@ -56,63 +58,63 @@ class HTTPPlayground:
             return result
 
         except httpx.ConnectError:
-            print("❌ Error: Could not connect to the API server")
+            print("Error: Could not connect to the API server")
             print(f"Make sure the server is running at {self.base_url}")
             return None
         except httpx.HTTPStatusError as e:
-            print(f"❌ HTTP Error: {e}")
+            print(f"HTTP Error: {e}")
             print(f"Response: {e.response.text}")
             return None
         except Exception as e:
-            print(f"❌ Unexpected error: {e}")
+            print(f"Unexpected error: {e}")
             return None
 
-    def get_event_status(self, event_id: str) -> Optional[Dict]:
-        """Get the status of an event.
+    def get_job_status(self, job_id: str) -> Optional[Dict]:
+        """Get the status of a job.
 
         Args:
-            event_id: The ID of the event to check
+            job_id: The ID of the job to check
 
         Returns:
-            Event status data including result if completed
+            Job status data including result if completed
         """
         try:
-            response = httpx.get(f"{self.events_endpoint}/{event_id}")
+            response = httpx.get(f"{self.jobs_endpoint}/{job_id}")
             response.raise_for_status()
             return response.json()
 
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 404:
-                print(f"❌ Event {event_id} not found")
+                print(f"Job {job_id} not found")
             else:
-                print(f"❌ HTTP Error: {e}")
+                print(f"HTTP Error: {e}")
             return None
         except Exception as e:
-            print(f"❌ Error getting event status: {e}")
+            print(f"Error getting job status: {e}")
             return None
 
-    def poll_event(
+    def poll_job(
         self,
-        event_id: str,
+        job_id: str,
         max_attempts: int = 30,
         interval: int = 2,
     ) -> Optional[Dict]:
-        """Poll an event until it completes or max attempts is reached.
+        """Poll a job until it completes or max attempts is reached.
 
         Args:
-            event_id: The ID of the event to poll
+            job_id: The ID of the job to poll
             max_attempts: Maximum number of polling attempts
             interval: Seconds to wait between attempts
 
         Returns:
-            Final event status data
+            Final job status data
         """
-        print(f"🔄 Polling event {event_id}...")
+        print(f"Polling job {job_id}...")
         print(f"Max attempts: {max_attempts}, Interval: {interval}s")
         print()
 
         for attempt in range(1, max_attempts + 1):
-            status_data = self.get_event_status(event_id)
+            status_data = self.get_job_status(job_id)
 
             if not status_data:
                 return None
@@ -127,58 +129,59 @@ class HTTPPlayground:
             time.sleep(interval)
 
         print()
-        print(f"⚠️  Polling timeout after {max_attempts} attempts")
+        print(f"Polling timeout after {max_attempts} attempts")
         return status_data
 
-    def display_result(self, event_data: Dict) -> None:
-        """Display the final event result in a formatted way.
+    def display_result(self, job_data: Dict) -> None:
+        """Display the final job result in a formatted way.
 
         Args:
-            event_data: The complete event data including result
+            job_data: The complete job data including result
         """
         print("=" * 60)
-        print("EVENT RESULT")
+        print("JOB RESULT")
         print("=" * 60)
-        print(f"Event ID: {event_data['event_id']}")
-        print(f"Event Type: {event_data['event_type']}")
-        print(f"Status: {event_data['status']}")
+        print(f"Job ID: {job_data['job_id']}")
+        print(f"Job Type: {job_data['job_type']}")
+        print(f"Status: {job_data['status']}")
         print()
 
-        if event_data.get("created_at"):
-            print(f"Created at: {event_data['created_at']}")
-        if event_data.get("started_at"):
-            print(f"Started at: {event_data['started_at']}")
-        if event_data.get("completed_at"):
-            print(f"Completed at: {event_data['completed_at']}")
+        if job_data.get("created_at"):
+            print(f"Created at: {job_data['created_at']}")
+        if job_data.get("started_at"):
+            print(f"Started at: {job_data['started_at']}")
+        if job_data.get("completed_at"):
+            print(f"Completed at: {job_data['completed_at']}")
             print()
 
-        if event_data["status"] == "completed" and event_data.get("result"):
+        if job_data["status"] == "completed" and job_data.get("result"):
             print("Result:")
-            print(json.dumps(event_data["result"], indent=2))
-        elif event_data["status"] == "failed" and event_data.get("error"):
-            print(f"Error: {event_data['error']}")
+            print(json.dumps(job_data["result"], indent=2))
+        elif job_data["status"] == "failed" and job_data.get("error"):
+            print(f"Error: {job_data['error']}")
 
         print("=" * 60)
 
-    def run_example(self, event_data: Dict) -> None:
+    def run_example(self, job_type: str, job_data: Dict) -> None:
         """Run a complete example: submit, poll, and display results.
 
         Args:
-            event_data: The event data to submit (dict with event_type, message, etc.)
+            job_type: The type of job to submit
+            job_data: The job data to submit (without job_type field)
         """
-        print("🚀 HTTP Playground - Event Processing Demo")
+        print("HTTP Playground - Job Processing Demo")
         print("=" * 60)
         print()
 
-        # Submit event
-        submission_result = self.submit_event(event_data)
+        # Submit job
+        submission_result = self.submit_job(job_type, job_data)
         if not submission_result:
             return
 
-        event_id = submission_result["event_id"]
+        job_id = submission_result["job_id"]
 
         # Poll for completion
-        final_status = self.poll_event(event_id)
+        final_status = self.poll_job(job_id)
         if not final_status:
             return
 
@@ -191,15 +194,14 @@ def main():
     # Create client
     client = HTTPPlayground(base_url="http://127.0.0.1:8080")
 
-    # Define event data directly (like in examples.http)
-    event_data = {
-        "event_type": "example",
+    # Define job data (without job_type - it's in the URL now)
+    job_data = {
         "message": "Hello, World! This is a test message.",
         "metadata": {"source": "http-playground", "test": True},
     }
 
     # Run example workflow
-    client.run_example(event_data)
+    client.run_example(job_type="example", job_data=job_data)
 
 
 if __name__ == "__main__":

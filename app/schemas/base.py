@@ -1,8 +1,8 @@
 """
-Base Event Schema Module
+Base Job Schema Module
 
-This module defines the base schema for all events. All event schemas
-should inherit from BaseEventSchema to ensure consistent structure.
+This module defines the base schema for all jobs. All job schemas
+should inherit from BaseJobSchema to ensure consistent structure.
 """
 
 from typing import Optional
@@ -10,21 +10,21 @@ from typing import Optional
 from pydantic import BaseModel, Field
 
 
-class BaseEventSchema(BaseModel):
-    """Base schema for all events.
+class BaseJobSchema(BaseModel):
+    """Base schema for all jobs.
 
-    All event schemas should inherit from this class to ensure
+    All job schemas should inherit from this class to ensure
     consistent structure and behavior.
 
     Attributes:
-        event_type: Identifier for the type of event, used to route
-                   to the appropriate workflow
+        job_type: Identifier for the type of job, used to route
+                  to the appropriate workflow
         metadata: Optional metadata for tracking/debugging
     """
 
-    event_type: str = Field(
+    job_type: str = Field(
         ...,
-        description="Event type identifier used to route to the appropriate workflow",
+        description="Job type identifier used to route to the appropriate workflow",
     )
     metadata: Optional[dict] = Field(
         default=None,
