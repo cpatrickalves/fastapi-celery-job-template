@@ -1,10 +1,8 @@
-import logging
 from pathlib import Path
 
 from alembic import command
 from alembic.config import Config
-
-logger = logging.getLogger(__name__)
+from utils.logger import logger
 
 
 def run_migrations() -> None:

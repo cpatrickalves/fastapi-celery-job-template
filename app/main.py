@@ -4,10 +4,10 @@ This is the main entry point for the FastAPI application that provides
 REST API endpoints for event-driven workflow processing.
 """
 
-import logging
 import os
 
 from dotenv import load_dotenv
+from utils.logger import logger
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -17,13 +17,6 @@ from api.router import router as api_router
 from settings import settings
 
 load_dotenv()
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
-logger = logging.getLogger(__name__)
 
 # Application settings
 VERSION = os.getenv("VERSION", "1.0.0")

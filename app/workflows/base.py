@@ -6,15 +6,13 @@ It provides lifecycle hooks (before_process, after_process, on_error) and handle
 the execution flow automatically.
 """
 
-import logging
 from abc import ABC, abstractmethod
 from typing import Optional, Type
 
 from pydantic import BaseModel
 
 from core.context import WorkflowContext
-
-logger = logging.getLogger(__name__)
+from utils.logger import logger
 
 
 class BaseWorkflow(ABC):
