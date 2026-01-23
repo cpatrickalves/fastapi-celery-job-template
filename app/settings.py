@@ -25,11 +25,11 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "genai-launchpad"
 
     # Database
-    DATABASE_HOST: str = ""
-    DATABASE_PORT: int = 5432
-    DATABASE_NAME: str = ""
-    DATABASE_USER: str = ""
-    DATABASE_PASSWORD: str = ""
+    POSTGRES_HOST: str = ""
+    POSTGRES_PORT: int = 5432
+    POSTGRES_DB: str = ""
+    POSTGRES_USER: str = ""
+    POSTGRES_PASSWORD: str = ""
 
     # Redis
     REDIS_HOST: str = ""
@@ -73,10 +73,10 @@ class Settings(BaseSettings):
     def _validate_required_vars(self) -> None:
         """Validate that required environment variables are set."""
         required_vars = (
-            "DATABASE_HOST",
-            "DATABASE_NAME",
-            "DATABASE_USER",
-            "DATABASE_PASSWORD",
+            "POSTGRES_HOST",
+            "POSTGRES_DB",
+            "POSTGRES_USER",
+            "POSTGRES_PASSWORD",
         )
 
         for var in required_vars:
@@ -101,8 +101,8 @@ class Settings(BaseSettings):
     def database_url(self) -> str:
         """Build the database URL from components."""
         return (
-            f"postgresql://{self.DATABASE_USER}:{self.DATABASE_PASSWORD}"
-            f"@{self.DATABASE_HOST}:{self.DATABASE_PORT}/{self.DATABASE_NAME}"
+            f"postgresql://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
+            f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
         )
 
     @property

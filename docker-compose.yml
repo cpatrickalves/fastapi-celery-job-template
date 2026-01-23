@@ -16,11 +16,11 @@ services:
       - ./app/:/app
     environment:
       - PROJECT_NAME=${PROJECT_NAME}
-      - DATABASE_HOST=${POSTGRES_HOST}
-      - DATABASE_NAME=${POSTGRES_DB}
-      - DATABASE_USER=postgres
-      - DATABASE_PASSWORD=${POSTGRES_PASSWORD}
-      - DATABASE_PORT=${POSTGRES_PORT}
+      - POSTGRES_HOST=${POSTGRES_HOST}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_PORT=${POSTGRES_PORT}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
 
@@ -42,11 +42,11 @@ services:
       - ./app:/app
     environment:
       - PROJECT_NAME=${PROJECT_NAME}
-      - DATABASE_HOST=${POSTGRES_HOST}
-      - DATABASE_NAME=${POSTGRES_DB}
-      - DATABASE_USER=postgres
-      - DATABASE_PASSWORD=${POSTGRES_PASSWORD}
-      - DATABASE_PORT=${POSTGRES_PORT}
+      - POSTGRES_HOST=${POSTGRES_HOST}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_PORT=${POSTGRES_PORT}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
 
@@ -79,7 +79,7 @@ services:
           "CMD",
           "pg_isready",
           "-U",
-          "postgres",
+          "${POSTGRES_USER}",
           "-h",
           "localhost"
         ]
@@ -89,7 +89,7 @@ services:
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: postgres
+      POSTGRES_USER: ${POSTGRES_USER}
     ports:
       - "127.0.0.1:5432:5432"
 
