@@ -1,10 +1,10 @@
-# GenAI Launchpad
+# Event Driven Processing Template
 
 ## Overview
 
-**Launchpad** is a template for job-driven asynchronous processing, designed for production applications that require scalable and reliable background processing.
+This project is a template for job-driven asynchronous processing, designed for production applications that require scalable and reliable background processing.
 
-The template offers a modular architecture that integrates the best tools and design patterns to enable agile development without compromising flexibility. Through a distributed queue system and asynchronous workers, Launchpad processes jobs efficiently while maintaining complete traceability of each task's lifecycle.
+The template offers a modular architecture that integrates the best tools and design patterns to enable agile development without compromising flexibility. Through a distributed queue system and asynchronous workers, the application processes jobs efficiently while maintaining complete traceability of each task's lifecycle.
 
 Ideal for applications that need to process long-running tasks, complex workflows, or operations that cannot block HTTP requests, the template provides a solid foundation for building robust and scalable systems.
 

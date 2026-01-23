@@ -93,9 +93,6 @@ target/
 app/alembic/versions/*
 !app/alembic/versions/.gitkeep
 
-# Launchpad playground
-playground/*.png
-
 app/google-service-account.json
 
 .claude
