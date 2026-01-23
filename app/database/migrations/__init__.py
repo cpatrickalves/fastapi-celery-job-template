@@ -11,10 +11,10 @@ def run_migrations() -> None:
         alembic_ini = Path(__file__).parent.parent.parent / "alembic.ini"
         alembic_cfg = Config(str(alembic_ini))
 
-        logger.info("[database] Checking for pending database migrations...")
+        logger.info("Checking for pending database migrations...")
         command.upgrade(alembic_cfg, "head")
-        logger.info("[database] Database migrations completed successfully.")
+        logger.info("Database migrations completed successfully.")
 
     except Exception as e:
-        logger.error(f"[database] Failed to run database migrations: {e}")
+        logger.error(f"Failed to run database migrations: {e}")
         raise
