@@ -2,7 +2,7 @@
 Workflow Context Module
 
 This module defines the WorkflowContext class that carries state through
-workflow execution. It provides a simplified container for event data,
+workflow execution. It provides a simplified container for job data,
 results, logging, and status tracking.
 """
 
@@ -16,12 +16,12 @@ class WorkflowContext(BaseModel):
     """Context object passed through workflow execution.
 
     This class serves as the primary state container during workflow processing.
-    It holds the event data, accumulates results, tracks status, and provides
+    It holds the job data, accumulates results, tracks status, and provides
     logging capabilities.
 
     Attributes:
-        event_id: Unique identifier of the event being processed
-        event_data: The validated event data from the request
+        job_id: Unique identifier of the job being processed
+        job_data: The validated job data from the request
         result: Processing result set by the workflow
         metadata: Additional metadata for tracking/debugging
         logs: List of log messages generated during processing
@@ -31,8 +31,8 @@ class WorkflowContext(BaseModel):
         error: Error message if processing failed
     """
 
-    event_id: str
-    event_data: dict[str, Any]
+    job_id: str
+    job_data: dict[str, Any]
     result: Any | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
     logs: list[str] = Field(default_factory=list)

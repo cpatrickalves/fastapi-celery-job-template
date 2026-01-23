@@ -9,7 +9,7 @@ using the register_workflow decorator, and implementing process().
 import time
 
 from core.context import WorkflowContext
-from schemas.example_schema import ExampleEventSchema
+from schemas.example_schema import ExampleJobSchema
 from workflows.base import BaseWorkflow
 from workflows.registry import register_workflow
 
@@ -26,17 +26,17 @@ class ExampleWorkflow(BaseWorkflow):
     This serves as a template for creating new workflows.
     """
 
-    event_schema = ExampleEventSchema
+    job_schema = ExampleJobSchema
 
     def process(self, context: WorkflowContext) -> None:
-        """Process the event by transforming the message.
+        """Process the job by transforming the message.
 
         Args:
-            context: The workflow context containing event data
+            context: The workflow context containing job data
         """
-        event = context.event_data
+        job = context.job_data
 
-        context.log(f"Received event with message: {event['message']}")
+        context.log(f"Received job with message: {job['message']}")
 
         # Simulate long-running process
         context.log("Starting 20-second processing simulation...")
@@ -44,15 +44,15 @@ class ExampleWorkflow(BaseWorkflow):
         context.log("Processing simulation complete")
 
         # Perform transformation
-        processed_message = event["message"].upper()
-        word_count = len(event["message"].split())
+        processed_message = job["message"].upper()
+        word_count = len(job["message"].split())
 
         context.log(f"Processing complete: {word_count} words processed")
 
         # Set the result
         context.set_result(
             {
-                "original": event["message"],
+                "original": job["message"],
                 "processed": processed_message,
                 "word_count": word_count,
                 "status": "success",

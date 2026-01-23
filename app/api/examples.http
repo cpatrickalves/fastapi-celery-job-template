@@ -1,0 +1,43 @@
+# You need to install the RestClient plugin on VSCode to use this file
+# https://marketplace.visualstudio.com/items?itemName=humao.rest-client
+
+@localhost = http://127.0.0.1:8080
+#@production_host =
+
+# Set host
+@host = {{localhost}}
+#@host = {{production_host}}
+
+
+###/========== Example Workflow - Submit Job ============= /
+# Submit a job to be processed by the example workflow
+# This workflow converts the message to uppercase and counts words
+# Note: Each job_type has its own endpoint with typed schema
+POST {{host}}/jobs/example HTTP/1.1
+content-type: application/json
+
+{
+    "message": "Hello, World! This is a test message.",
+    "metadata": {
+        "source": "rest-client",
+        "test": true
+    }
+}
+
+###/========== Example Workflow - Get Job Status ============= /
+# Replace {job_id} with the actual job_id returned from the POST request above
+GET {{host}}/jobs/{job_id} HTTP/1.1
+
+
+###/========== Example Workflow - Simple Message ============= /
+# Another example with a simple message
+POST {{host}}/jobs/example HTTP/1.1
+content-type: application/json
+
+{
+    "message": "Testing the example workflow"
+}
+
+
+###/========== Health Check ============= /
+GET {{host}}/health HTTP/1.1

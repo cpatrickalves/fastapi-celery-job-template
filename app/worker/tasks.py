@@ -1,8 +1,8 @@
 """
 Workflow Task Processing Module
 
-This module handles asynchronous processing of workflow events using Celery.
-It manages the lifecycle of event processing from database retrieval through
+This module handles asynchronous processing of workflow jobs using Celery.
+It manages the lifecycle of job processing from database retrieval through
 workflow execution and result storage.
 """
 
@@ -11,7 +11,7 @@ from contextlib import contextmanager
 from datetime import datetime
 
 from core.context import WorkflowContext
-from database.event import Event
+from database.job import Job
 from database.repository import GenericRepository
 from database.session import db_session
 from worker.config import celery_app
@@ -23,55 +23,55 @@ import workflows.example_workflow  # noqa: F401
 logger = logging.getLogger(__name__)
 
 
-@celery_app.task(name="process_incoming_event")
-def process_incoming_event(event_id: str):
-    """Process an incoming event through its designated workflow.
+@celery_app.task(name="process_job")
+def process_job(job_id: str):
+    """Process a job through its designated workflow.
 
-    This Celery task handles the asynchronous processing of events by:
-    1. Retrieving the event from the database
+    This Celery task handles the asynchronous processing of jobs by:
+    1. Retrieving the job from the database
     2. Creating a WorkflowContext
     3. Getting the appropriate workflow from the registry
     4. Executing the workflow
     5. Storing the results
 
     Args:
-        event_id: Unique identifier of the event to process
+        job_id: Unique identifier of the job to process
     """
     with contextmanager(db_session)() as session:
-        repository = GenericRepository(session=session, model=Event)
+        repository = GenericRepository(session=session, model=Job)
 
-        # Retrieve event from database
-        db_event = repository.get(id=event_id)
-        if db_event is None:
-            raise ValueError(f"Event with id {event_id} not found")
+        # Retrieve job from database
+        db_job = repository.get(id=job_id)
+        if db_job is None:
+            raise ValueError(f"Job with id {job_id} not found")
 
         # Update status to processing
-        db_event.status = "processing"
-        db_event.started_at = datetime.now()
-        repository.update(obj=db_event)
+        db_job.status = "processing"
+        db_job.started_at = datetime.now()
+        repository.update(obj=db_job)
 
         try:
             # Create workflow context
             context = WorkflowContext(
-                event_id=str(db_event.id),
-                event_data=db_event.data,
+                job_id=str(db_job.id),
+                job_data=db_job.data,
             )
 
             # Get and execute workflow
-            workflow = get_workflow(db_event.event_type)
+            workflow = get_workflow(db_job.job_type)
             context = workflow.run(context)
 
             # Store results
-            db_event.result = context.result
-            db_event.status = context.status
-            db_event.error = context.error
-            db_event.context = context.model_dump(mode="json")
-            db_event.completed_at = context.completed_at
+            db_job.result = context.result
+            db_job.status = context.status
+            db_job.error = context.error
+            db_job.context = context.model_dump(mode="json")
+            db_job.completed_at = context.completed_at
 
         except Exception as e:
-            logger.exception(f"Failed to process event {event_id}")
-            db_event.status = "failed"
-            db_event.error = f"{type(e).__name__}: {str(e)}"
-            db_event.completed_at = datetime.now()
+            logger.exception(f"Failed to process job {job_id}")
+            db_job.status = "failed"
+            db_job.error = f"{type(e).__name__}: {str(e)}"
+            db_job.completed_at = datetime.now()
 
-        repository.update(obj=db_event)
+        repository.update(obj=db_job)

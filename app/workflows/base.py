@@ -24,34 +24,34 @@ class BaseWorkflow(ABC):
     The base class provides:
     - Automatic lifecycle management via `run()`
     - Optional hooks: before_process, after_process, on_error
-    - Schema validation for event data
+    - Schema validation for job data
     - Error handling and status tracking
 
     Example:
         class MyWorkflow(BaseWorkflow):
-            event_schema = MyEventSchema
+            job_schema = MyJobSchema
 
             def process(self, context: WorkflowContext) -> None:
                 # Your processing logic here
-                data = context.event_data
+                data = context.job_data
                 result = do_something(data)
                 context.set_result(result)
     """
 
-    event_schema: Optional[Type[BaseModel]] = None
+    job_schema: Optional[Type[BaseModel]] = None
 
     def run(self, context: WorkflowContext) -> WorkflowContext:
         """Execute the workflow with lifecycle hooks.
 
         This method orchestrates the full workflow execution:
-        1. Validates event data against schema (if defined)
+        1. Validates job data against schema (if defined)
         2. Calls before_process hook
         3. Calls process (main logic)
         4. Calls after_process hook on success
         5. Calls on_error hook on failure
 
         Args:
-            context: The workflow context containing event data
+            context: The workflow context containing job data
 
         Returns:
             WorkflowContext: The updated context with results or error
@@ -60,9 +60,9 @@ class BaseWorkflow(ABC):
         context.log(f"Starting workflow: {self.__class__.__name__}")
 
         try:
-            # Validate event data if schema is defined
-            if self.event_schema:
-                self._validate_event(context)
+            # Validate job data if schema is defined
+            if self.job_schema:
+                self._validate_job(context)
 
             # Execute lifecycle
             self.before_process(context)
@@ -82,31 +82,31 @@ class BaseWorkflow(ABC):
 
         return context
 
-    def _validate_event(self, context: WorkflowContext) -> None:
-        """Validate event data against the workflow's schema.
+    def _validate_job(self, context: WorkflowContext) -> None:
+        """Validate job data against the workflow's schema.
 
         Args:
-            context: The workflow context containing event data
+            context: The workflow context containing job data
 
         Raises:
-            ValidationError: If event data doesn't match schema
+            ValidationError: If job data doesn't match schema
         """
-        if self.event_schema:
-            self.event_schema.model_validate(context.event_data)
-            context.log("Event data validated successfully")
+        if self.job_schema:
+            self.job_schema.model_validate(context.job_data)
+            context.log("Job data validated successfully")
 
     @abstractmethod
     def process(self, context: WorkflowContext) -> None:
         """Main processing logic to be implemented by subclasses.
 
         This is where the actual workflow logic lives. Implementations should:
-        - Read data from context.event_data
+        - Read data from context.job_data
         - Perform processing
         - Store results via context.set_result()
         - Log progress via context.log()
 
         Args:
-            context: The workflow context with event data and state
+            context: The workflow context with job data and state
         """
         pass
 
