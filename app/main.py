@@ -14,6 +14,7 @@ from fastapi.responses import JSONResponse
 
 from database.migrations import run_migrations
 from api.router import router as api_router
+from api.health_router import router as health_router
 from settings import settings
 
 load_dotenv()
@@ -70,22 +71,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(api_router)
-
-
-@app.get(
-    "/health",
-    tags=["Health"],
-    status_code=status.HTTP_200_OK,
-    summary="Health check endpoint",
-    description="Returns the health status of the API.",
-)
-async def health_check():
-    """Health check endpoint for monitoring and load balancers.
-
-    Returns:
-        dict: Status message indicating the API is operational
-    """
-    return {"status": "ok", "version": VERSION}
+app.include_router(health_router)
 
 
 @app.on_event("startup")
