@@ -20,13 +20,18 @@ class ExampleJobSchema(BaseJobSchema):
     This schema demonstrates the basic structure of a job:
     - job_type: Identifies which workflow should process this job
     - message: The main payload to be processed
-    - metadata: Optional tracking information
+    - metadata: Optional tracking information for debugging and auditing
 
     Example:
         {
             "job_type": "example",
             "message": "Hello, World!",
-            "metadata": {"source": "test"}
+            "metadata": {
+                "user_id": "user_123",
+                "source_system": "web_app",
+                "request_id": "req_abc123",
+                "environment": "production"
+            }
         }
     """
 
@@ -41,7 +46,12 @@ class ExampleJobSchema(BaseJobSchema):
     )
     metadata: Optional[dict] = Field(
         default=None,
-        description="Optional metadata for tracking and debugging",
+        description=(
+            "Optional metadata for tracking and debugging. "
+            "Examples: user_id, source_system, request_id, correlation_id, "
+            "tenant_id, environment, or any contextual information useful for "
+            "monitoring, troubleshooting, and auditing."
+        ),
     )
 
     model_config = {
@@ -49,7 +59,12 @@ class ExampleJobSchema(BaseJobSchema):
             "example": {
                 "job_type": "example",
                 "message": "Hello, World!",
-                "metadata": {"source": "test"},
+                "metadata": {
+                    "user_id": "user_123",
+                    "source_system": "web_app",
+                    "request_id": "req_abc123",
+                    "environment": "production",
+                },
             }
         }
     }

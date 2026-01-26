@@ -68,6 +68,7 @@ class WorkflowContext(BaseModel):
     job_id: str
     job_data: dict[str, Any]
     result: Any | None = None
+    metadata: dict[str, Any] = {}        # Tracking/debugging metadata
     logs: list[str] = []
     status: str = "pending"
     error: str | None = None
@@ -77,6 +78,13 @@ class WorkflowContext(BaseModel):
     def complete(self) -> None: ...
     def fail(self, error: str) -> None: ...
 ```
+
+The `metadata` field can store contextual information such as:
+- **Request tracking**: `user_id`, `session_id`, `request_id`
+- **Source identification**: `source_system`, `api_version`, `client_type`
+- **Debugging**: `correlation_id`, `trace_id`, `environment`
+- **Auditing**: `timestamp`, `ip_address`, `user_agent`
+- **Business context**: `tenant_id`, `organization_id`, `region`
 
 ### BaseWorkflow
 
@@ -111,8 +119,15 @@ Maps job_type to Pydantic schema for validation and OpenAPI docs:
 ```python
 @register_schema("example")
 class ExampleJobSchema(BaseJobSchema):
+    job_type: Literal["example"] = "example"
     message: str = Field(..., min_length=1)
+    metadata: Optional[dict] = Field(
+        default=None,
+        description="Optional metadata for tracking and debugging"
+    )
 ```
+
+All schemas inherit from `BaseJobSchema`, which provides the `job_type` and `metadata` fields.
 
 ### Workflow Registry
 

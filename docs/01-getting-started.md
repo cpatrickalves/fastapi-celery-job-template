@@ -61,8 +61,16 @@ scripts/start.sh
 ```bash
 curl -X POST http://localhost:8080/jobs/example \
   -H "Content-Type: application/json" \
-  -d '{"message": "Hello World"}'
+  -d '{
+    "message": "Hello World",
+    "metadata": {
+      "user_id": "user_123",
+      "source_system": "web_app"
+    }
+  }'
 ```
+
+> **Note**: The `metadata` field is optional and can include tracking information like `user_id`, `source_system`, `request_id`, `correlation_id`, or any contextual data useful for monitoring, debugging, and auditing.
 
 Response:
 ```json
