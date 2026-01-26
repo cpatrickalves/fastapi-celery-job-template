@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     # CORS
     ALLOWED_ORIGINS: str = ""
 
+    # API Key Authentication
+    API_KEYS: str = ""
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
