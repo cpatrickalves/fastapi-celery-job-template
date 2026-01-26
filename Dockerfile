@@ -6,19 +6,18 @@ RUN groupadd -r appuser && useradd -r -g appuser appuser
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-WORKDIR /app
+WORKDIR /code
 
 ADD pyproject.toml .
 RUN uv pip install --system -r pyproject.toml
 RUN uv pip install --system watchdog
 
-ADD app/ /app
+ADD app/ /code/app
 
-RUN chmod +x /app/start.sh
-RUN chown -R appuser:appuser /app
+RUN chown -R appuser:appuser /code
 
 USER appuser
 
 EXPOSE 8080
 
-CMD ["/app/start.sh"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
