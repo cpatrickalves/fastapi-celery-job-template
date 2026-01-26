@@ -6,10 +6,12 @@
 
 ```python
 # app/schemas/my_schema.py
-from pydantic import Field
 from typing import Literal
-from schemas.base import BaseJobSchema
-from schemas.registry import register_schema
+
+from pydantic import Field
+
+from app.schemas.base import BaseJobSchema
+from app.schemas.registry import register_schema
 
 @register_schema("my_job")
 class MyJobSchema(BaseJobSchema):
@@ -27,10 +29,10 @@ class MyJobSchema(BaseJobSchema):
 
 ```python
 # app/workflows/my_workflow.py
-from core.context import WorkflowContext
-from schemas.my_schema import MyJobSchema
-from workflows.base import BaseWorkflow
-from workflows.registry import register_workflow
+from app.core.context import WorkflowContext
+from app.schemas.my_schema import MyJobSchema
+from app.workflows.base import BaseWorkflow
+from app.workflows.registry import register_workflow
 
 @register_workflow("my_job")
 class MyWorkflow(BaseWorkflow):
@@ -59,10 +61,10 @@ class MyWorkflow(BaseWorkflow):
 
 ```python
 # app/api/endpoint.py - add import
-import schemas.my_schema  # noqa: F401
+import app.schemas.my_schema  # noqa: F401
 
 # app/worker/tasks.py - add import
-import workflows.my_workflow  # noqa: F401
+import app.workflows.my_workflow  # noqa: F401
 ```
 
 ### Step 4: Test
@@ -72,8 +74,9 @@ import workflows.my_workflow  # noqa: F401
 scripts/stop.sh && scripts/start.sh
 
 # Test endpoint
-curl -X POST http://localhost:8080/jobs/my_job \
+curl -X POST http://localhost:8000/jobs/my_job \
   -H "Content-Type: application/json" \
+  -H "X-API-Key: your-api-key-here" \
   -d '{"input_data": "test"}'
 ```
 
@@ -96,6 +99,7 @@ Each registered job_type gets a dedicated endpoint:
 ```
 POST /jobs/example
 Content-Type: application/json
+X-API-Key: your-api-key-here
 
 {
   "message": "Hello World"
@@ -115,6 +119,7 @@ Response (202 Accepted):
 
 ```
 GET /jobs/{job_id}
+X-API-Key: your-api-key-here
 ```
 
 Response:
@@ -151,10 +156,10 @@ Test workflows without Docker:
 ```python
 # playground/workflow_playground.py
 import sys
-sys.path.insert(0, "../app")
+sys.path.insert(0, "..")
 
-from core.context import WorkflowContext
-from workflows.my_workflow import MyWorkflow
+from app.core.context import WorkflowContext
+from app.workflows.my_workflow import MyWorkflow
 
 context = WorkflowContext(
     job_id="test-123",
@@ -182,19 +187,22 @@ python http_playground.py
 
 ## Configuration
 
-Environment variables in `app/.env`:
+Environment variables in `.env`:
 
 ```bash
 # Database
-DATABASE_HOST=db
-DATABASE_PORT=5432
-DATABASE_NAME=launchpad
-DATABASE_USER=postgres
-DATABASE_PASSWORD=your-password
+POSTGRES_HOST=db
+POSTGRES_PORT=5432
+POSTGRES_DB=launchpad
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=your-password
 
 # Redis
 REDIS_HOST=redis
 REDIS_PORT=6379
+
+# API Authentication
+API_KEYS=your-api-key-here
 ```
 
 ---
