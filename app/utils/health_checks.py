@@ -3,6 +3,7 @@ import redis
 
 from app.utils.logger import logger
 from app.settings import settings
+from app.worker.config import celery_app
 
 
 def check_postgres_health() -> dict:
@@ -56,8 +57,6 @@ def check_redis_health() -> dict:
 def check_celery_workers() -> dict:
     """Check if Celery workers are running."""
     try:
-        from worker.config import celery_app
-
         inspector = celery_app.control.inspect()
         stats = inspector.stats()
         if stats:

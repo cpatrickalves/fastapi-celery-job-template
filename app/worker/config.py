@@ -40,4 +40,4 @@ celery_app = Celery("tasks")
 celery_app.config_from_object(get_celery_config())
 
 # Automatically discover and register tasks
-celery_app.autodiscover_tasks(["worker"], force=True)
+celery_app.autodiscover_tasks(["app.worker"], force=True)
