@@ -19,7 +19,13 @@ class BaseJobSchema(BaseModel):
     Attributes:
         job_type: Identifier for the type of job, used to route
                   to the appropriate workflow
-        metadata: Optional metadata for tracking/debugging
+        metadata: Optional metadata for tracking, debugging, and auditing.
+                  Common use cases:
+                  - Request tracking: user_id, session_id, request_id
+                  - Source identification: source_system, api_version, client_type
+                  - Debugging: correlation_id, trace_id, environment
+                  - Auditing: timestamp, ip_address, user_agent
+                  - Business context: tenant_id, organization_id, region
     """
 
     job_type: str = Field(
@@ -28,7 +34,12 @@ class BaseJobSchema(BaseModel):
     )
     metadata: Optional[dict] = Field(
         default=None,
-        description="Optional metadata for tracking and debugging",
+        description=(
+            "Optional metadata for tracking, debugging, and auditing. "
+            "Use for request tracking (user_id, session_id), source identification "
+            "(source_system, client_type), debugging (correlation_id, trace_id), "
+            "or business context (tenant_id, organization_id)."
+        ),
     )
 
     model_config = {

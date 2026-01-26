@@ -6,7 +6,7 @@
 
 ```python
 # app/schemas/my_schema.py
-from typing import Literal
+from typing import Literal, Optional
 
 from pydantic import Field
 
@@ -17,13 +17,35 @@ from app.schemas.registry import register_schema
 class MyJobSchema(BaseJobSchema):
     job_type: Literal["my_job"] = "my_job"
     input_data: str = Field(..., description="Data to process")
+    
+    # metadata is inherited from BaseJobSchema but you can override
+    # the description for more specific use cases if needed
+    metadata: Optional[dict] = Field(
+        default=None,
+        description=(
+            "Optional metadata for tracking and debugging. "
+            "Examples: user_id, source_system, request_id"
+        ),
+    )
 
     model_config = {
         "json_schema_extra": {
-            "example": {"input_data": "sample data"}
+            "example": {
+                "input_data": "sample data",
+                "metadata": {
+                    "user_id": "user_123",
+                    "source_system": "web_app"
+                }
+            }
         }
     }
 ```
+
+**Note**: The `metadata` field is inherited from `BaseJobSchema` and is optional. It's useful for:
+- Tracking request origins (`user_id`, `session_id`)
+- Debugging distributed systems (`correlation_id`, `trace_id`)
+- Auditing and compliance (`timestamp`, `ip_address`)
+- Multi-tenancy (`tenant_id`, `organization_id`)
 
 ### Step 2: Create Workflow
 
@@ -102,9 +124,17 @@ Content-Type: application/json
 X-API-Key: your-api-key-here
 
 {
-  "message": "Hello World"
+  "message": "Hello World",
+  "metadata": {
+    "user_id": "user_123",
+    "source_system": "web_app",
+    "request_id": "req_abc123",
+    "environment": "production"
+  }
 }
 ```
+
+**Metadata Field** (optional): Include contextual information for tracking, debugging, and auditing. Common fields include `user_id`, `source_system`, `request_id`, `correlation_id`, `tenant_id`, or any custom tracking data.
 
 Response (202 Accepted):
 ```json
@@ -163,7 +193,8 @@ from app.workflows.my_workflow import MyWorkflow
 
 context = WorkflowContext(
     job_id="test-123",
-    job_data={"job_type": "my_job", "input_data": "test"}
+    job_data={"job_type": "my_job", "input_data": "test"},
+    metadata={"user_id": "test_user", "environment": "development"}
 )
 
 workflow = MyWorkflow()
