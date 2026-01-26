@@ -1,8 +1,8 @@
 import psycopg2
 import redis
 
-from utils.logger import logger
-from settings import settings
+from app.utils.logger import logger
+from app.settings import settings
 
 
 def check_postgres_health() -> dict:

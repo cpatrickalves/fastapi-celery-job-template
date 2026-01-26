@@ -5,11 +5,11 @@ from dotenv import load_dotenv
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 
-from database.database_utils import DatabaseUtils
-from database.session import Base
+from app.database.database_utils import DatabaseUtils
+from app.database.session import Base
 
 # This import is required for autogenerate support
-from database.job import *  # noqa: F401, F403
+from app.database.job import *  # noqa: F401, F403
 
 """
 Alembic Environment Module

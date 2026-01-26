@@ -8,10 +8,10 @@ using the register_workflow decorator, and implementing process().
 
 import time
 
-from core.context import WorkflowContext
-from schemas.example_schema import ExampleJobSchema
-from workflows.base import BaseWorkflow
-from workflows.registry import register_workflow
+from app.core.context import WorkflowContext
+from app.schemas.example_schema import ExampleJobSchema
+from app.workflows.base import BaseWorkflow
+from app.workflows.registry import register_workflow
 
 
 @register_workflow("example")

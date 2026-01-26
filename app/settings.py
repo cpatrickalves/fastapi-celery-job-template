@@ -13,7 +13,7 @@ from typing import Any
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 import tomli
-from utils.logger import logger
+from app.utils.logger import logger
 
 
 class Settings(BaseSettings):

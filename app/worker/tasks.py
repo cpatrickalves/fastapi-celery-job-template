@@ -9,16 +9,16 @@ workflow execution and result storage.
 from contextlib import contextmanager
 from datetime import datetime
 
-from core.context import WorkflowContext
-from database.job import Job
-from database.repository import GenericRepository
-from database.session import db_session
-from utils.logger import logger
-from worker.config import celery_app
-from workflows.registry import get_workflow
+from app.core.context import WorkflowContext
+from app.database.job import Job
+from app.database.repository import GenericRepository
+from app.database.session import db_session
+from app.utils.logger import logger
+from app.worker.config import celery_app
+from app.workflows.registry import get_workflow
 
 # Import example workflow to ensure it's registered
-import workflows.example_workflow  # noqa: F401
+import app.workflows.example_workflow  # noqa: F401
 
 
 @celery_app.task(name="process_job")

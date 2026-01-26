@@ -7,13 +7,15 @@ Workflows are registered by job_type and can be retrieved for execution.
 
 from typing import Callable, Type
 
-from workflows.base import BaseWorkflow
+from app.workflows.base import BaseWorkflow
 
 # Internal registry mapping job_type -> workflow class
 _registry: dict[str, Type[BaseWorkflow]] = {}
 
 
-def register_workflow(job_type: str) -> Callable[[Type[BaseWorkflow]], Type[BaseWorkflow]]:
+def register_workflow(
+    job_type: str,
+) -> Callable[[Type[BaseWorkflow]], Type[BaseWorkflow]]:
     """Decorator to register a workflow class for a given job type.
 
     Usage:

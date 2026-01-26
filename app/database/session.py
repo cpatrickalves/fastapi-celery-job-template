@@ -3,8 +3,8 @@ from typing import Generator
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
 
-from database.database_utils import DatabaseUtils
-from utils.logger import logger
+from app.database.database_utils import DatabaseUtils
+from app.utils.logger import logger
 
 """
 Session Module

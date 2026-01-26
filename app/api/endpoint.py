@@ -22,16 +22,16 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from starlette.responses import Response
 
-from database.job import Job
-from database.repository import GenericRepository
-from database.session import db_session
-from schemas.base import BaseJobSchema
-from schemas.registry import get_all_schemas
-from worker.config import celery_app
-from workflows.registry import workflow_exists
+from app.database.job import Job
+from app.database.repository import GenericRepository
+from app.database.session import db_session
+from app.schemas.base import BaseJobSchema
+from app.schemas.registry import get_all_schemas
+from app.worker.config import celery_app
+from app.workflows.registry import workflow_exists
 
 # Import schemas to ensure they're registered before endpoint generation
-import schemas.example_schema  # noqa: F401
+import app.schemas.example_schema  # noqa: F401
 
 router = APIRouter()
 
