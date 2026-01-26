@@ -29,7 +29,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: "${PROJECT_NAME}_celery_worker"
-    command: sh -c "watchmedo auto-restart --directory=./ --pattern='*.py' --recursive -- celery -A worker.config worker --loglevel=info --concurrency=1"
+    command: sh -c "watchmedo auto-restart --directory=./ --pattern='*.py' --recursive -- celery -A app.worker.config worker --loglevel=info --concurrency=1"
     depends_on:
       db:
         condition: service_healthy

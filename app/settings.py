@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     ALLOWED_ORIGINS: str = ""
 
     # API Key Authentication
-    API_KEYS: str = ""
+    API_KEYS: str = "Python42"
 
     model_config = SettingsConfigDict(
         env_file=".env",
