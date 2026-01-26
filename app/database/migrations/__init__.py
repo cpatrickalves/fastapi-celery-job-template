@@ -2,7 +2,7 @@ from pathlib import Path
 
 from alembic import command
 from alembic.config import Config
-from utils.logger import logger
+from app.utils.logger import logger
 
 
 def run_migrations() -> None:

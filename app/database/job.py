@@ -15,7 +15,7 @@ from datetime import datetime
 from sqlalchemy import JSON, Column, DateTime, Index, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 
-from database.session import Base
+from app.database.session import Base
 
 
 class Job(Base):
@@ -101,6 +101,4 @@ class Job(Base):
     )
 
     # Composite index for common queries
-    __table_args__ = (
-        Index("ix_jobs_status_created", "status", "created_at"),
-    )
+    __table_args__ = (Index("ix_jobs_status_created", "status", "created_at"),)

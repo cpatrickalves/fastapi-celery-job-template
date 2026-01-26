@@ -1,11 +1,11 @@
 from fastapi import APIRouter
 
-from utils.health_checks import (
+from app.utils.health_checks import (
     check_postgres_health,
     check_celery_workers,
     check_redis_health,
 )
-from settings import settings
+from app.settings import settings
 
 router = APIRouter(
     prefix="",

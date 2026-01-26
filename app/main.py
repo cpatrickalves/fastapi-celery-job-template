@@ -7,15 +7,15 @@ REST API endpoints for event-driven workflow processing.
 import os
 
 from dotenv import load_dotenv
-from utils.logger import logger
+from app.utils.logger import logger
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from database.migrations import run_migrations
-from api.router import router as api_router
-from api.health_router import router as health_router
-from settings import settings
+from app.database.migrations import run_migrations
+from app.api.router import router as api_router
+from app.api.health_router import router as health_router
+from app.settings import settings
 
 load_dotenv()
 

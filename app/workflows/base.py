@@ -11,8 +11,8 @@ from typing import Optional, Type
 
 from pydantic import BaseModel
 
-from core.context import WorkflowContext
-from utils.logger import logger
+from app.core.context import WorkflowContext
+from app.utils.logger import logger
 
 
 class BaseWorkflow(ABC):
