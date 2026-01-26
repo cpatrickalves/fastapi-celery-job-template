@@ -35,7 +35,7 @@ Event-driven workflow processing API.
 
 ## Authentication
 
-Configure authentication middleware as needed for your deployment.
+All `/jobs` endpoints require API key authentication via the `X-API-Key` header.
 """
 
 # Initialize FastAPI application
