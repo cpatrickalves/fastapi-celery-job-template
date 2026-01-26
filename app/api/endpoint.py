@@ -170,7 +170,7 @@ async def get_job_status(
         HTTPException: 404 if job not found
     """
     repository = AsyncGenericRepository(session=session, model=Job)
-    job = await repository.get(id=job_id)
+    job = await repository.get(id=str(job_id))
 
     if job is None:
         raise HTTPException(
@@ -178,13 +178,23 @@ async def get_job_status(
             detail=f"Job with id '{job_id}' not found",
         )
 
+    created_at_value = (
+        job.created_at.isoformat() if job.created_at is not None else None
+    )
+    started_at_value = (
+        job.started_at.isoformat() if job.started_at is not None else None
+    )
+    completed_at_value = (
+        job.completed_at.isoformat() if job.completed_at is not None else None
+    )
+
     return JobStatusResponse(
         job_id=str(job.id),
-        job_type=job.job_type,
-        status=job.status,
+        job_type=str(job.job_type),
+        status=str(job.status),
         result=job.result,
-        error=job.error,
-        created_at=job.created_at.isoformat() if job.created_at else None,
-        started_at=job.started_at.isoformat() if job.started_at else None,
-        completed_at=job.completed_at.isoformat() if job.completed_at else None,
+        error=str(job.error) if job.error is not None else None,
+        created_at=created_at_value,
+        started_at=started_at_value,
+        completed_at=completed_at_value,
     )
