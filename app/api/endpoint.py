@@ -142,7 +142,7 @@ def register_job_endpoints() -> None:
             methods=["POST"],
             response_model=JobResponse,
             status_code=HTTPStatus.ACCEPTED,
-            tags=[job_type],
+            tags=["Jobs"],
             summary=f"Submit {job_type} job",
             description=description,
         )
@@ -152,7 +152,7 @@ def register_job_endpoints() -> None:
 register_job_endpoints()
 
 
-@router.get("/{job_id}", response_model=JobStatusResponse, tags=["jobs"])
+@router.get("/{job_id}", response_model=JobStatusResponse, tags=["Jobs"])
 async def get_job_status(
     job_id: UUID,
     session: AsyncSession = Depends(get_db),
