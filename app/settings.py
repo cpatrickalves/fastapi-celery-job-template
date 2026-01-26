@@ -109,6 +109,14 @@ class Settings(BaseSettings):
         )
 
     @property
+    def async_database_url(self) -> str:
+        """Build the async database URL with asyncpg driver."""
+        return (
+            f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
+            f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+        )
+
+    @property
     def redis_url(self) -> str:
         """Build the Redis URL from components."""
         return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/0"

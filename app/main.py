@@ -5,17 +5,19 @@ REST API endpoints for event-driven workflow processing.
 """
 
 import os
+from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
-from app.utils.logger import logger
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.database.migrations import run_migrations
-from app.api.router import router as api_router
 from app.api.health_router import router as health_router
+from app.api.router import router as api_router
+from app.database.migrations import run_migrations
+from app.database.session import close_db, init_db
 from app.settings import settings
+from app.utils.logger import logger
 
 load_dotenv()
 
@@ -38,6 +40,29 @@ Event-driven workflow processing API.
 All `/jobs` endpoints require API key authentication via the `X-API-Key` header.
 """
 
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    """Application lifespan handler for startup and shutdown events."""
+    # Startup
+    logger.info("=" * 50)
+    logger.info(f"{PROJECT_NAME} API v{settings.VERSION} starting up")
+    logger.info(f"Environment: {settings.ENVIRONMENT}")
+    logger.info("Documentation available at: /docs")
+    logger.info("=" * 50)
+
+    if settings.ENVIRONMENT != "testing":
+        run_migrations()
+        await init_db()
+
+    yield
+
+    # Shutdown
+    logger.info(f"{PROJECT_NAME} API shutting down")
+    if settings.ENVIRONMENT != "testing":
+        await close_db()
+
+
 # Initialize FastAPI application
 app = FastAPI(
     title=f"{PROJECT_NAME} API",
@@ -46,6 +71,7 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
     openapi_url="/openapi.json",
+    lifespan=lifespan,
 )
 
 # Configure CORS middleware
@@ -72,25 +98,6 @@ app.add_middleware(
 # Include routers
 app.include_router(api_router)
 app.include_router(health_router)
-
-
-@app.on_event("startup")
-async def startup_event():
-    """Log application startup information."""
-    logger.info("=" * 50)
-    logger.info(f"{PROJECT_NAME} API v{settings.VERSION} starting up")
-    logger.info(f"Environment: {settings.ENVIRONMENT}")
-    logger.info("Documentation available at: /docs")
-    logger.info("=" * 50)
-
-    if settings.ENVIRONMENT != "testing":
-        run_migrations()
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Log application shutdown information."""
-    logger.info(f"{PROJECT_NAME} API shutting down")
 
 
 @app.exception_handler(Exception)

@@ -19,12 +19,12 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import Response
 
 from app.database.job import Job
-from app.database.repository import GenericRepository
-from app.database.session import db_session
+from app.database.repository import AsyncGenericRepository
+from app.database.session import get_db
 from app.schemas.base import BaseJobSchema
 from app.schemas.registry import get_all_schemas
 from app.worker.config import celery_app
@@ -70,9 +70,9 @@ def create_job_endpoint(
         A FastAPI endpoint function with the correct type annotations
     """
 
-    def endpoint(
+    async def endpoint(
         data: BaseJobSchema,  # Will be overwritten by __annotations__
-        session: Session = Depends(db_session),
+        session: AsyncSession = Depends(get_db),
     ) -> Response:
         """Submit a job for asynchronous processing."""
         # Convert validated Pydantic model to dict for storage
@@ -86,9 +86,9 @@ def create_job_endpoint(
             )
 
         # Store job in database
-        repository = GenericRepository(session=session, model=Job)
+        repository = AsyncGenericRepository(session=session, model=Job)
         job = Job(data=job_data, job_type=job_type)
-        repository.create(obj=job)
+        await repository.create(obj=job)
 
         # Queue processing task
         celery_app.send_task("process_job", args=[str(job.id)])
@@ -109,7 +109,7 @@ def create_job_endpoint(
     # Set dynamic type annotation for FastAPI to use in OpenAPI generation
     endpoint.__annotations__ = {
         "data": schema_class,
-        "session": Session,
+        "session": AsyncSession,
         "return": Response,
     }
     endpoint.__name__ = f"submit_{job_type}_job"
@@ -153,9 +153,9 @@ register_job_endpoints()
 
 
 @router.get("/{job_id}", response_model=JobStatusResponse, tags=["jobs"])
-def get_job_status(
+async def get_job_status(
     job_id: UUID,
-    session: Session = Depends(db_session),
+    session: AsyncSession = Depends(get_db),
 ) -> JobStatusResponse:
     """Get the status and result of a job.
 
@@ -169,8 +169,8 @@ def get_job_status(
     Raises:
         HTTPException: 404 if job not found
     """
-    repository = GenericRepository(session=session, model=Job)
-    job = repository.get(id=job_id)
+    repository = AsyncGenericRepository(session=session, model=Job)
+    job = await repository.get(id=job_id)
 
     if job is None:
         raise HTTPException(
