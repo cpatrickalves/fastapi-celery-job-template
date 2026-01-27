@@ -5,13 +5,13 @@
 ### Step 1: Create Schema
 
 ```python
-# app/schemas/my_schema.py
+# app/workflows/schemas/my_schema.py
 from typing import Literal, Optional
 
 from pydantic import Field
 
-from app.schemas.base import BaseJobSchema
-from app.schemas.registry import register_schema
+from app.workflows.schemas.base import BaseJobSchema
+from app.workflows.schemas.registry import register_schema
 
 @register_schema("my_job")
 class MyJobSchema(BaseJobSchema):
@@ -52,7 +52,7 @@ class MyJobSchema(BaseJobSchema):
 ```python
 # app/workflows/my_workflow.py
 from app.core.context import WorkflowContext
-from app.schemas.my_schema import MyJobSchema
+from app.workflows.schemas.my_schema import MyJobSchema
 from app.workflows.base import BaseWorkflow
 from app.workflows.registry import register_workflow
 
@@ -83,7 +83,7 @@ class MyWorkflow(BaseWorkflow):
 
 ```python
 # app/api/endpoint.py - add import
-import app.schemas.my_schema  # noqa: F401
+import app.workflows.schemas.my_schema  # noqa: F401
 
 # app/worker/tasks.py - add import
 import app.workflows.my_workflow  # noqa: F401

@@ -25,13 +25,13 @@ from starlette.responses import Response
 from app.database.job import Job
 from app.database.repository import AsyncGenericRepository
 from app.database.session import get_db
-from app.schemas.base import BaseJobSchema
-from app.schemas.registry import get_all_schemas
+from app.workflows.schemas.base import BaseJobSchema
+from app.workflows.schemas.registry import get_all_schemas
 from app.worker.config import celery_app
 from app.workflows.registry import workflow_exists
 
 # Import schemas to ensure they're registered before endpoint generation
-import app.schemas.example_schema  # noqa: F401
+import app.workflows.schemas.example_schema  # noqa: F401
 
 router = APIRouter()
 

@@ -9,7 +9,7 @@ using the register_workflow decorator, and implementing process().
 import time
 
 from app.core.context import WorkflowContext
-from app.schemas.example_schema import ExampleJobSchema
+from app.workflows.schemas.example_schema import ExampleJobSchema
 from app.workflows.base import BaseWorkflow
 from app.workflows.registry import register_workflow
 

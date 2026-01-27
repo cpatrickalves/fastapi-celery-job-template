@@ -9,7 +9,7 @@ from typing import Callable, Type
 
 from pydantic import BaseModel
 
-from app.schemas.base import BaseJobSchema
+from app.workflows.schemas.base import BaseJobSchema
 
 # Internal registry mapping job_type -> schema class
 _schema_registry: dict[str, Type[BaseJobSchema]] = {}
