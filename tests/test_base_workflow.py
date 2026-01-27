@@ -11,7 +11,7 @@ import pytest
 from pydantic import Field, ValidationError
 
 from app.core.context import WorkflowContext
-from app.schemas.base import BaseJobSchema
+from app.workflows.schemas.base import BaseJobSchema
 from app.workflows.base import BaseWorkflow
 
 

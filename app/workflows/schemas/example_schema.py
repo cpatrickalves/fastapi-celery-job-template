@@ -9,8 +9,8 @@ from typing import Literal, Optional
 
 from pydantic import Field
 
-from app.schemas.base import BaseJobSchema
-from app.schemas.registry import register_schema
+from app.workflows.schemas.base import BaseJobSchema
+from app.workflows.schemas.registry import register_schema
 
 
 @register_schema("example")

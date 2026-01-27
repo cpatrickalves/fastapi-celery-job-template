@@ -9,8 +9,8 @@ from typing import Literal
 import pytest
 from pydantic import Field
 
-from app.schemas.base import BaseJobSchema
-from app.schemas.registry import (
+from app.workflows.schemas.base import BaseJobSchema
+from app.workflows.schemas.registry import (
     clear_registry,
     get_all_schemas,
     get_schema,
