@@ -11,13 +11,12 @@ from typing import Literal, Optional
 from pydantic import Field
 
 from app.workflows.schemas.base import BaseJobSchema
-from app.workflows.schemas.registry import register_schema
 
-@register_schema("my_job")
+
 class MyJobSchema(BaseJobSchema):
     job_type: Literal["my_job"] = "my_job"
     input_data: str = Field(..., description="Data to process")
-    
+
     # metadata is inherited from BaseJobSchema but you can override
     # the description for more specific use cases if needed
     metadata: Optional[dict] = Field(
@@ -52,14 +51,10 @@ class MyJobSchema(BaseJobSchema):
 ```python
 # app/workflows/my_workflow.py
 from app.core.context import WorkflowContext
-from app.workflows.schemas.my_schema import MyJobSchema
 from app.workflows.base import BaseWorkflow
-from app.workflows.registry import register_workflow
 
-@register_workflow("my_job")
+
 class MyWorkflow(BaseWorkflow):
-    job_schema = MyJobSchema
-
     def process(self, context: WorkflowContext) -> None:
         data = context.job_data["input_data"]
         context.log(f"Processing: {data}")
@@ -79,14 +74,30 @@ class MyWorkflow(BaseWorkflow):
         context.log(f"Error: {error}")
 ```
 
-### Step 3: Register Imports
+### Step 3: Register in `app/workflows/config.py`
+
+Add a `register_workflow()` call inside `register_all_workflows()`. For multiple workflows, add one call per workflow — all registrations live in this single file:
 
 ```python
-# app/api/endpoint.py - add import
-import app.workflows.schemas.my_schema  # noqa: F401
+from app.workflows.my_workflow import MyWorkflow
+from app.workflows.schemas.my_schema import MyJobSchema
 
-# app/worker/tasks.py - add import
-import app.workflows.my_workflow  # noqa: F401
+register_workflow(
+    job_type="my_job",
+    workflow=MyWorkflow,
+    schema=MyJobSchema,
+)
+
+# Add more workflows as needed:
+# register_workflow(
+#     job_type="another_job",
+#     workflow=AnotherWorkflow,
+#     schema=AnotherJobSchema,
+# )
+#
+# Feature flags work naturally:
+# if settings.ENABLE_EXPERIMENTAL:
+#     register_workflow(job_type="experimental", ...)
 ```
 
 ### Step 4: Test

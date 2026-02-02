@@ -28,11 +28,14 @@ def sample_job_id() -> str:
 @pytest.fixture(autouse=True)
 def reset_registries() -> Generator[None, None, None]:
     """Reset registries before and after each test to ensure isolation."""
+    from app.workflows.config import _reset_registered
     from app.workflows.schemas.registry import clear_registry as clear_schema_registry
     from app.workflows.registry import clear_registry as clear_workflow_registry
 
     clear_workflow_registry()
     clear_schema_registry()
+    _reset_registered()
     yield
     clear_workflow_registry()
     clear_schema_registry()
+    _reset_registered()

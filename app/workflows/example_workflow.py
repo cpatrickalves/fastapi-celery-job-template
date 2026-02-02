@@ -2,19 +2,16 @@
 Example Workflow Module
 
 This module demonstrates a simple workflow implementation.
-It shows the basic structure: inheriting from BaseWorkflow,
-using the register_workflow decorator, and implementing process().
+It shows the basic structure: inheriting from BaseWorkflow
+and implementing process().
 """
 
 import time
 
 from app.core.context import WorkflowContext
-from app.workflows.schemas.example_schema import ExampleJobSchema
 from app.workflows.base import BaseWorkflow
-from app.workflows.registry import register_workflow
 
 
-@register_workflow("example")
 class ExampleWorkflow(BaseWorkflow):
     """Example workflow that demonstrates the basic structure.
 
@@ -25,8 +22,6 @@ class ExampleWorkflow(BaseWorkflow):
 
     This serves as a template for creating new workflows.
     """
-
-    job_schema = ExampleJobSchema
 
     def process(self, context: WorkflowContext) -> None:
         """Process the job by transforming the message.

@@ -16,10 +16,10 @@ sys.path.append(str(Path(__file__).parent.parent))
 import nest_asyncio
 
 from core.context import WorkflowContext
+from workflows.config import register_all_workflows
 from workflows.registry import get_workflow, list_workflows
 
-# Import workflows to ensure they're registered
-import workflows.example_workflow  # noqa: F401
+register_all_workflows()
 
 from playground.utils.job_loader import JobLoader
 
