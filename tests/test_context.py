@@ -112,6 +112,118 @@ class TestWorkflowContextResults:
         assert context.result is None
 
 
+class TestWorkflowContextProgress:
+    """Tests for progress tracking functionality."""
+
+    def test_set_progress_updates_fields(
+        self, sample_job_id: str, sample_job_data: dict[str, Any]
+    ) -> None:
+        """set_progress() should update progress and progress_message."""
+        context = WorkflowContext(job_id=sample_job_id, job_data=sample_job_data)
+
+        context.set_progress(50.0, "Halfway done")
+
+        assert context.progress == 50.0
+        assert context.progress_message == "Halfway done"
+
+    def test_set_progress_without_message(
+        self, sample_job_id: str, sample_job_data: dict[str, Any]
+    ) -> None:
+        """set_progress() without message should set progress_message to None."""
+        context = WorkflowContext(job_id=sample_job_id, job_data=sample_job_data)
+
+        context.set_progress(25.0)
+
+        assert context.progress == 25.0
+        assert context.progress_message is None
+
+    def test_set_progress_rejects_negative_value(
+        self, sample_job_id: str, sample_job_data: dict[str, Any]
+    ) -> None:
+        """set_progress() should raise ValueError for values below 0."""
+        context = WorkflowContext(job_id=sample_job_id, job_data=sample_job_data)
+
+        with pytest.raises(ValueError, match="between 0 and 100"):
+            context.set_progress(-1.0)
+
+    def test_set_progress_rejects_over_100(
+        self, sample_job_id: str, sample_job_data: dict[str, Any]
+    ) -> None:
+        """set_progress() should raise ValueError for values above 100."""
+        context = WorkflowContext(job_id=sample_job_id, job_data=sample_job_data)
+
+        with pytest.raises(ValueError, match="between 0 and 100"):
+            context.set_progress(101.0)
+
+    def test_set_progress_accepts_boundary_values(
+        self, sample_job_id: str, sample_job_data: dict[str, Any]
+    ) -> None:
+        """set_progress() should accept 0.0 and 100.0."""
+        context = WorkflowContext(job_id=sample_job_id, job_data=sample_job_data)
+
+        context.set_progress(0.0)
+        assert context.progress == 0.0
+
+        context.set_progress(100.0)
+        assert context.progress == 100.0
+
+    def test_set_progress_logs_message(
+        self, sample_job_id: str, sample_job_data: dict[str, Any]
+    ) -> None:
+        """set_progress() should add a log entry."""
+        context = WorkflowContext(job_id=sample_job_id, job_data=sample_job_data)
+
+        context.set_progress(75.0, "Almost there")
+
+        assert any("75.0%" in log for log in context.logs)
+        assert any("Almost there" in log for log in context.logs)
+
+    def test_set_progress_calls_callback(
+        self, sample_job_id: str, sample_job_data: dict[str, Any]
+    ) -> None:
+        """set_progress() should invoke _on_progress callback."""
+        calls: list[tuple[float, str | None]] = []
+
+        context = WorkflowContext(job_id=sample_job_id, job_data=sample_job_data)
+        context._on_progress = lambda v, m: calls.append((v, m))
+
+        context.set_progress(50.0, "test")
+
+        assert calls == [(50.0, "test")]
+
+    def test_set_progress_without_callback_does_not_error(
+        self, sample_job_id: str, sample_job_data: dict[str, Any]
+    ) -> None:
+        """set_progress() without callback should work (playground/testing)."""
+        context = WorkflowContext(job_id=sample_job_id, job_data=sample_job_data)
+
+        context.set_progress(50.0)
+
+        assert context.progress == 50.0
+
+    def test_progress_defaults(
+        self, sample_job_id: str, sample_job_data: dict[str, Any]
+    ) -> None:
+        """Default progress should be 0.0 with no message."""
+        context = WorkflowContext(job_id=sample_job_id, job_data=sample_job_data)
+
+        assert context.progress == 0.0
+        assert context.progress_message is None
+
+    def test_callback_excluded_from_model_dump(
+        self, sample_job_id: str, sample_job_data: dict[str, Any]
+    ) -> None:
+        """_on_progress callback should not appear in serialized output."""
+        context = WorkflowContext(job_id=sample_job_id, job_data=sample_job_data)
+        context._on_progress = lambda v, m: None
+
+        dumped = context.model_dump(mode="json")
+
+        assert "_on_progress" not in dumped
+        assert "progress" in dumped
+        assert "progress_message" in dumped
+
+
 class TestWorkflowContextLogging:
     """Tests for logging functionality."""
 
