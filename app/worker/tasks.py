@@ -15,10 +15,10 @@ from app.database.repository import GenericRepository
 from app.database.session import db_session
 from app.utils.logger import logger
 from app.worker.config import celery_app
+from app.workflows.config import register_all_workflows
 from app.workflows.registry import get_workflow
 
-# Import example workflow to ensure it's registered
-import app.workflows.example_workflow  # noqa: F401
+register_all_workflows()
 
 
 @celery_app.task(name="process_job")

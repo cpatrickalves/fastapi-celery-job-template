@@ -5,9 +5,7 @@ This module provides a registration system for job schemas.
 Schemas are registered by job_type and used for validation.
 """
 
-from typing import Callable, Type
-
-from pydantic import BaseModel
+from typing import Type
 
 from app.workflows.schemas.base import BaseJobSchema
 
@@ -15,31 +13,25 @@ from app.workflows.schemas.base import BaseJobSchema
 _schema_registry: dict[str, Type[BaseJobSchema]] = {}
 
 
-def register_schema(job_type: str) -> Callable[[Type[BaseModel]], Type[BaseModel]]:
-    """Decorator to register a schema class for a given job type.
+def _register_schema(job_type: str, schema_class: Type[BaseJobSchema]) -> None:
+    """Register a schema class for a given job type (internal use).
 
-    Usage:
-        @register_schema("example")
-        class ExampleJobSchema(BaseJobSchema):
-            message: str
+    Called by register_workflow() in the workflow registry when a schema
+    is provided. Not intended for direct external use.
 
     Args:
         job_type: The job type string this schema validates
+        schema_class: The schema class to register
 
-    Returns:
-        Decorator function that registers the schema class
+    Raises:
+        ValueError: If a schema is already registered for the job_type
     """
-
-    def decorator(cls: Type[BaseModel]) -> Type[BaseModel]:
-        if job_type in _schema_registry:
-            raise ValueError(
-                f"Schema already registered for job_type '{job_type}': "
-                f"{_schema_registry[job_type].__name__}"
-            )
-        _schema_registry[job_type] = cls
-        return cls
-
-    return decorator
+    if job_type in _schema_registry:
+        raise ValueError(
+            f"Schema already registered for job_type '{job_type}': "
+            f"{_schema_registry[job_type].__name__}"
+        )
+    _schema_registry[job_type] = schema_class
 
 
 def get_schema(job_type: str) -> Type[BaseJobSchema]:

@@ -28,10 +28,10 @@ from app.database.session import get_db
 from app.workflows.schemas.base import BaseJobSchema
 from app.workflows.schemas.registry import get_all_schemas
 from app.worker.config import celery_app
+from app.workflows.config import register_all_workflows
 from app.workflows.registry import workflow_exists
 
-# Import schemas to ensure they're registered before endpoint generation
-import app.workflows.schemas.example_schema  # noqa: F401
+register_all_workflows()
 
 router = APIRouter()
 

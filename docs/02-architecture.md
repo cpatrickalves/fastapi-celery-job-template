@@ -112,12 +112,13 @@ class BaseWorkflow(ABC):
 
 ## Registry System
 
-### Schema Registry
+All workflows and schemas are registered centrally in `app/workflows/config.py` via explicit `register_workflow()` calls. This replaces decorator-based registration and enables feature flags.
 
-Maps job_type to Pydantic schema for validation and OpenAPI docs:
+### Schema Definition
+
+Schemas define validation and OpenAPI docs per job_type:
 
 ```python
-@register_schema("example")
 class ExampleJobSchema(BaseJobSchema):
     job_type: Literal["example"] = "example"
     message: str = Field(..., min_length=1)
@@ -129,17 +130,28 @@ class ExampleJobSchema(BaseJobSchema):
 
 All schemas inherit from `BaseJobSchema`, which provides the `job_type` and `metadata` fields.
 
-### Workflow Registry
+### Workflow Definition
 
-Maps job_type to workflow class for execution:
+Workflow classes contain the processing logic:
 
 ```python
-@register_workflow("example")
 class ExampleWorkflow(BaseWorkflow):
-    job_schema = ExampleJobSchema
-
     def process(self, context: WorkflowContext) -> None:
         context.set_result({"done": True})
+```
+
+### Central Registration
+
+Workflows and schemas are wired together in `app/workflows/config.py`:
+
+```python
+from app.workflows.registry import register_workflow
+
+register_workflow(
+    job_type="example",
+    workflow=ExampleWorkflow,
+    schema=ExampleJobSchema,
+)
 ```
 
 ---

@@ -10,10 +10,8 @@ from typing import Literal, Optional
 from pydantic import Field
 
 from app.workflows.schemas.base import BaseJobSchema
-from app.workflows.schemas.registry import register_schema
 
 
-@register_schema("example")
 class ExampleJobSchema(BaseJobSchema):
     """Schema for jobs processed by the example workflow.
 
