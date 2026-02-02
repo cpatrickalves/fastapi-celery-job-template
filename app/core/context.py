@@ -7,9 +7,9 @@ results, logging, and status tracking.
 """
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Callable
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, PrivateAttr
 
 
 class WorkflowContext(BaseModel):
@@ -29,6 +29,8 @@ class WorkflowContext(BaseModel):
         completed_at: Timestamp when processing completed
         status: Current status (pending, processing, completed, failed)
         error: Error message if processing failed
+        progress: Processing progress percentage (0.0 to 100.0)
+        progress_message: Optional human-readable progress status message
     """
 
     job_id: str
@@ -40,6 +42,10 @@ class WorkflowContext(BaseModel):
     completed_at: datetime | None = None
     status: str = "pending"
     error: str | None = None
+    progress: float = 0.0
+    progress_message: str | None = None
+
+    _on_progress: Callable[[float, str | None], None] | None = PrivateAttr(default=None)
 
     def log(self, message: str) -> None:
         """Add a log message to the context.
@@ -57,6 +63,26 @@ class WorkflowContext(BaseModel):
             result: The result data from workflow processing
         """
         self.result = result
+
+    def set_progress(self, value: float, message: str | None = None) -> None:
+        """Update progress percentage and optionally persist to storage.
+
+        Args:
+            value: Progress percentage (0.0 to 100.0)
+            message: Optional human-readable progress message
+
+        Raises:
+            ValueError: If value is not between 0 and 100
+        """
+        if not 0.0 <= value <= 100.0:
+            raise ValueError(f"Progress must be between 0 and 100, got {value}")
+
+        self.progress = value
+        self.progress_message = message
+        self.log(f"Progress: {value:.1f}%" + (f" - {message}" if message else ""))
+
+        if self._on_progress is not None:
+            self._on_progress(value, message)
 
     def set_error(self, error: str) -> None:
         """Set an error message and mark status as failed.

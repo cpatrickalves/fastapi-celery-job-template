@@ -36,18 +36,22 @@ class ExampleWorkflow(BaseWorkflow):
         """
         job = context.job_data
 
+        context.set_progress(10.0, "Received job")
         context.log(f"Received job with message: {job['message']}")
 
         # Simulate long-running process
-        context.log("Starting 20-second processing simulation...")
-        time.sleep(20)
-        context.log("Processing simulation complete")
+        context.set_progress(20.0, "Processing simulation started")
+        time.sleep(10)
+        context.set_progress(50.0, "Processing simulation halfway")
+        time.sleep(10)
+        context.set_progress(80.0, "Processing simulation complete")
 
         # Perform transformation
         processed_message = job["message"].upper()
         word_count = len(job["message"].split())
 
         context.log(f"Processing complete: {word_count} words processed")
+        context.set_progress(90.0, "Finalizing result")
 
         # Set the result
         context.set_result(

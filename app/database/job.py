@@ -12,7 +12,7 @@ It provides storage for:
 import uuid
 from datetime import datetime
 
-from sqlalchemy import JSON, Column, DateTime, Index, String, Text
+from sqlalchemy import JSON, Column, DateTime, Float, Index, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 
 from app.database.session import Base
@@ -32,6 +32,8 @@ class Job(Base):
         status: Current processing status (pending, processing, completed, failed)
         error: Error message if processing failed
         context: Full workflow context for debugging (logs, metadata)
+        progress: Processing progress percentage (0-100)
+        progress_message: Optional human-readable progress status message
         created_at: When the job was created
         started_at: When processing started
         completed_at: When processing completed
@@ -77,6 +79,18 @@ class Job(Base):
         JSON,
         nullable=True,
         doc="Full workflow context for debugging (logs, metadata)",
+    )
+    progress = Column(
+        Float,
+        default=0.0,
+        nullable=False,
+        server_default="0",
+        doc="Processing progress percentage (0-100)",
+    )
+    progress_message = Column(
+        String(500),
+        nullable=True,
+        doc="Human-readable progress status message",
     )
     created_at = Column(
         DateTime,

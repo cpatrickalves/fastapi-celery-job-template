@@ -49,11 +49,24 @@ def process_job(job_id: str):
         repository.update(obj=db_job)
 
         try:
+            # Progress persistence callback
+            def persist_progress(value: float, message: str | None) -> None:
+                try:
+                    db_job.progress = value
+                    db_job.progress_message = message
+                    repository.update(obj=db_job)
+                except Exception:
+                    logger.warning(
+                        f"Failed to persist progress for job {job_id}",
+                        exc_info=True,
+                    )
+
             # Create workflow context
             context = WorkflowContext(
                 job_id=str(db_job.id),
                 job_data=db_job.data,
             )
+            context._on_progress = persist_progress
 
             # Get and execute workflow
             workflow = get_workflow(db_job.job_type)
@@ -65,6 +78,10 @@ def process_job(job_id: str):
             db_job.error = context.error
             db_job.context = context.model_dump(mode="json")
             db_job.completed_at = context.completed_at
+            db_job.progress = (
+                100.0 if context.status == "completed" else context.progress
+            )
+            db_job.progress_message = context.progress_message
 
         except Exception as e:
             logger.exception(f"Failed to process job {job_id}")

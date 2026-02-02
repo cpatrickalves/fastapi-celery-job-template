@@ -50,6 +50,8 @@ class JobStatusResponse(BaseModel):
     job_id: str
     job_type: str
     status: str
+    progress: float = 0.0
+    progress_message: str | None = None
     result: Any | None = None
     error: str | None = None
     created_at: str | None = None
@@ -192,6 +194,8 @@ async def get_job_status(
         job_id=str(job.id),
         job_type=str(job.job_type),
         status=str(job.status),
+        progress=float(job.progress) if job.progress is not None else 0.0,
+        progress_message=job.progress_message,
         result=job.result,
         error=str(job.error) if job.error is not None else None,
         created_at=created_at_value,

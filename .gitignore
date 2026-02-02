@@ -94,6 +94,7 @@ app/alembic/versions/*
 !app/alembic/versions/.gitkeep
 
 app/google-service-account.json
+logbook/
 
 .claude
 .pytest_cache
