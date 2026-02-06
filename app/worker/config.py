@@ -33,6 +33,9 @@ def get_celery_config():
         "result_serializer": "json",
         "enable_utc": True,
         "broker_connection_retry_on_startup": True,
+        "worker_send_task_events": True,
+        "task_send_sent_event": True,
+        "worker_heartbeat_interval": 2,
     }
 
 
