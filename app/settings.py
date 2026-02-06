@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     # Application
     VERSION: str = "1.0.0"
     ENVIRONMENT: str = "development"
-    PROJECT_NAME: str = "genai-launchpad"
+    PROJECT_NAME: str = "fastapi-celery-job-template"
 
     # Database
     POSTGRES_HOST: str = ""

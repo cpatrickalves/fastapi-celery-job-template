@@ -1,4 +1,4 @@
-"""Launchpad API - Event-driven workflow processing.
+"""FastAPI Celery Job Template - Job-driven workflow processing.
 
 This is the main entry point for the FastAPI application that provides
 REST API endpoints for event-driven workflow processing.
@@ -24,7 +24,7 @@ load_dotenv()
 # Application settings
 VERSION = os.getenv("VERSION", "1.0.0")
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
-PROJECT_NAME = os.getenv("PROJECT_NAME", "genai-launchpad")
+PROJECT_NAME = os.getenv("PROJECT_NAME", "fastapi-celery-job-template")
 
 api_description = """
 Event-driven workflow processing API.

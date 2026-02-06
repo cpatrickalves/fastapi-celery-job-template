@@ -2,7 +2,7 @@
 
 ## Introduction
 
-Launchpad is a production-ready template for building job-driven async processing applications. It provides a robust architecture combining FastAPI, PostgreSQL, Redis, and Celery for reliable background task processing.
+FastAPI Celery Job Template is a production-ready template for building job-driven async processing applications. It provides a robust architecture combining FastAPI, PostgreSQL, Redis, and Celery for reliable background task processing.
 
 ### Key Features
 
@@ -33,8 +33,8 @@ POST /jobs/{job_type} → Validate Schema → Store in DB → Queue Task → 202
 
 ```bash
 # Clone repository
-git clone https://github.com/datalumina/genai-launchpad.git
-cd genai-launchpad
+git clone https://github.com/datalumina/fastapi-celery-job-template.git
+cd fastapi-celery-job-template
 
 # Setup environment
 cp app/.env.example app/.env

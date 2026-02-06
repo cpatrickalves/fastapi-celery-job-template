@@ -1,7 +1,7 @@
 [project]
 name = "app"
 version = "0.0.1"
-description = "Launchpad - Job-driven async processing framework"
+description = "FastAPI Celery Job Template - Job-driven async processing"
 requires-python = ">=3.12"
 dependencies = [
     "alembic>=1.16.4",

@@ -235,7 +235,7 @@ Environment variables in `.env`:
 # Database
 POSTGRES_HOST=db
 POSTGRES_PORT=5432
-POSTGRES_DB=launchpad
+POSTGRES_DB=postgres
 POSTGRES_USER=postgres
 POSTGRES_PASSWORD=your-password
 
@@ -251,26 +251,10 @@ API_KEYS=your-api-key-here
 
 ## Troubleshooting
 
-### Container Issues
-
-```bash
-# Clean restart
-scripts/stop.sh
-docker volume rm launchpad_db_data launchpad_redis_data
-scripts/start.sh
-```
 
 ### View Logs
 
 ```bash
 scripts/logs.sh
 ```
-
-### Check Job in Database
-
-```sql
-SELECT id, job_type, status, error, created_at
-FROM jobs
-ORDER BY created_at DESC
-LIMIT 10;
 ```
