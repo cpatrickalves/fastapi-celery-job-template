@@ -33,7 +33,7 @@ POST /jobs/{job_type} → Validate Schema → Store in DB → Queue Task → 202
 
 ```bash
 # Clone repository
-git clone https://github.com/datalumina/fastapi-celery-job-template.git
+git clone https://github.com/cpatrickalves/fastapi-celery-job-template.git
 cd fastapi-celery-job-template
 
 # Setup environment
