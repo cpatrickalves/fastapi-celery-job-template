@@ -1,4 +1,4 @@
-# Event Driven Processing Template
+# FastAPI Celery Job Template
 
 ## Overview
 
@@ -79,7 +79,7 @@ Ideal for applications that need to process long-running tasks, complex workflow
 
 ```bash
 git clone <repository-url>
-cd genai-launchpad
+cd fastapi-celery-job-template
 ```
 
 ### 2. Configure environment variables
@@ -106,7 +106,7 @@ This command will:
 ### Check service status
 
 ```bash
-docker compose -p launchpad ps
+docker compose ps
 ```
 
 ### Access API documentation
@@ -146,8 +146,8 @@ curl http://localhost:8080/jobs/{job_id}
 ./scripts/logs.sh
 
 # Logs from a specific service
-docker compose -p launchpad logs -f api
-docker compose -p launchpad logs -f celery_worker
+docker compose logs -f api
+docker compose logs -f celery_worker
 ```
 
 ### Stop the services

@@ -1,1 +1,1 @@
-"""Launchpad - Job-driven async processing framework."""
+"""FastAPI Celery Job Template - Job-driven async processing framework."""

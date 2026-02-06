@@ -2,7 +2,7 @@
 
 ## Overview
 
-Launchpad implements a job-driven async processing architecture:
+FastAPI Celery Job Template implements a job-driven async processing architecture:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
