@@ -22,7 +22,7 @@ register_all_workflows()
 
 
 @celery_app.task(name="process_job")
-def process_job(job_id: str):
+def process_job(job_id: str, meta: dict | None = None):
     """Process a job through its designated workflow.
 
     This Celery task handles the asynchronous processing of jobs by:
@@ -35,6 +35,8 @@ def process_job(job_id: str):
     Args:
         job_id: Unique identifier of the job to process
     """
+    meta = meta or {}
+
     with contextmanager(db_session)() as session:
         repository = GenericRepository(session=session, model=Job)
 
@@ -83,10 +85,21 @@ def process_job(job_id: str):
             )
             db_job.progress_message = context.progress_message
 
+            repository.update(obj=db_job)
+
+            return {
+                "job_id": job_id,
+                "job_type": db_job.job_type,
+                "status": context.status,
+                "result": context.result,
+            }
+
         except Exception as e:
             logger.exception(f"Failed to process job {job_id}")
             db_job.status = "failed"
             db_job.error = f"{type(e).__name__}: {str(e)}"
             db_job.completed_at = datetime.now()
 
-        repository.update(obj=db_job)
+            repository.update(obj=db_job)
+
+            return {"job_id": job_id, "status": "failed", "error": str(e)}
