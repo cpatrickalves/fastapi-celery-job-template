@@ -15,26 +15,13 @@ from app.database.repository import GenericRepository
 from app.database.session import db_session
 from app.utils.logger import logger
 from app.worker.config import celery_app
-from app.workflows.config import register_all_workflows
 from app.workflows.registry import get_workflow
 
-register_all_workflows()
+_dynamic_tasks: dict[str, object] = {}
 
 
-@celery_app.task(name="process_job")
-def process_job(job_id: str, meta: dict | None = None):
-    """Process a job through its designated workflow.
-
-    This Celery task handles the asynchronous processing of jobs by:
-    1. Retrieving the job from the database
-    2. Creating a WorkflowContext
-    3. Getting the appropriate workflow from the registry
-    4. Executing the workflow
-    5. Storing the results
-
-    Args:
-        job_id: Unique identifier of the job to process
-    """
+def _process_job_impl(job_id: str, meta: dict | None = None):
+    """Shared processing logic for all job tasks."""
     meta = meta or {}
 
     with contextmanager(db_session)() as session:
@@ -103,3 +90,27 @@ def process_job(job_id: str, meta: dict | None = None):
             repository.update(obj=db_job)
 
             return {"job_id": job_id, "status": "failed", "error": str(e)}
+
+
+@celery_app.task(name="process_job")
+def process_job(job_id: str, meta: dict | None = None):
+    """Fallback task for backward compatibility."""
+    return _process_job_impl(job_id, meta)
+
+
+def register_celery_task(job_type: str):
+    """Register a Celery task named after the job_type."""
+    if job_type in _dynamic_tasks:
+        return
+    task = celery_app.task(name=job_type)(_process_job_impl)
+    _dynamic_tasks[job_type] = task
+
+
+def clear_celery_tasks():
+    """Clear dynamic tasks. For testing only."""
+    _dynamic_tasks.clear()
+
+
+from app.workflows.config import register_all_workflows  # noqa: E402
+
+register_all_workflows()

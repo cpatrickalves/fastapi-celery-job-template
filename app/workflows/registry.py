@@ -45,6 +45,10 @@ def register_workflow(
 
         _register_schema(job_type, schema)
 
+    from app.worker.tasks import register_celery_task
+
+    register_celery_task(job_type)
+
 
 def get_workflow(job_type: str) -> BaseWorkflow:
     """Get a workflow instance for the given job type.

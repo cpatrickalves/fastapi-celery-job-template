@@ -93,7 +93,7 @@ def create_job_endpoint(
         await repository.create(obj=job)
 
         # Queue processing task
-        celery_app.send_task("process_job", args=[str(job.id), {
+        celery_app.send_task(job_type, args=[str(job.id), {
             "job_type": job_type,
             "job_data": job_data,
         }])
