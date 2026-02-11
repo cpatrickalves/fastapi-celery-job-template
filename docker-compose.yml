@@ -83,6 +83,10 @@ services:
       BASIC_AUTH_PASSWORD_HASH: ${KANCHI_AUTH_PASSWORD_HASH}
       SESSION_SECRET_KEY: ${KANCHI_SESSION_SECRET:-}
       TOKEN_SECRET_KEY: ${KANCHI_TOKEN_SECRET:-}
+      NUXT_PUBLIC_API_URL: ${NUXT_PUBLIC_API_URL:-http://localhost:8765}
+      NUXT_PUBLIC_WS_URL: ${NUXT_PUBLIC_WS_URL:-ws://localhost:8765/ws}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost}
     depends_on:
       redis:
         condition: service_healthy
