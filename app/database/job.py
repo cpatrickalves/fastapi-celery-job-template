@@ -107,6 +107,11 @@ class Job(Base):
         nullable=True,
         doc="Timestamp when processing completed",
     )
+    cancelled_at = Column(
+        DateTime,
+        nullable=True,
+        doc="Timestamp when the job was cancelled",
+    )
     updated_at = Column(
         DateTime,
         default=datetime.now,

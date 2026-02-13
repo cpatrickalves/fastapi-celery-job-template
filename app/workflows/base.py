@@ -64,11 +64,21 @@ class BaseWorkflow(ABC):
 
             # Execute lifecycle
             self.before_process(context)
+
+            if context.check_cancelled():
+                context.cancel()
+                return context
+
             self.process(context)
+
+            if context.check_cancelled():
+                context.cancel()
+                return context
+
             self.after_process(context)
 
             # Mark as completed if not already failed
-            if context.status != "failed":
+            if context.status not in ("failed", "cancelled"):
                 context.complete()
                 context.log(f"Workflow completed: {self.__class__.__name__}")
 

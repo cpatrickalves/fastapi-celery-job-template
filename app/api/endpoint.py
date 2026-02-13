@@ -10,13 +10,16 @@ It implements the "accept-and-delegate" pattern where:
 Endpoints:
 - POST /{job_type}: Submit a new job for processing (typed per job_type)
 - GET /{job_id}: Retrieve job status and results
+- POST /{job_id}/cancel: Cancel a pending or running job
 """
 
 import json
+from datetime import datetime
 from http import HTTPStatus
 from typing import Any, Callable, Type
 from uuid import UUID
 
+import redis
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,10 +28,11 @@ from starlette.responses import Response
 from app.database.job import Job
 from app.database.repository import AsyncGenericRepository
 from app.database.session import get_db
+from app.services.cancellation import CancellationService
+from app.worker.config import celery_app, get_redis_url
+from app.workflows.config import register_all_workflows
 from app.workflows.schemas.base import BaseJobSchema
 from app.workflows.schemas.registry import get_all_schemas
-from app.worker.config import celery_app
-from app.workflows.config import register_all_workflows
 from app.workflows.registry import workflow_exists
 
 register_all_workflows()
@@ -57,6 +61,14 @@ class JobStatusResponse(BaseModel):
     created_at: str | None = None
     started_at: str | None = None
     completed_at: str | None = None
+    cancelled_at: str | None = None
+
+
+class CancelJobResponse(BaseModel):
+    """Response model for job cancellation."""
+
+    job_id: str
+    status: str
 
 
 def create_job_endpoint(
@@ -92,11 +104,18 @@ def create_job_endpoint(
         job = Job(data=job_data, job_type=job_type)
         await repository.create(obj=job)
 
-        # Queue processing task
-        celery_app.send_task(job_type, args=[str(job.id), {
-            "job_type": job_type,
-            "job_data": job_data,
-        }])
+        # Queue processing task (use job.id as Celery task_id for revocation)
+        celery_app.send_task(
+            job_type,
+            args=[
+                str(job.id),
+                {
+                    "job_type": job_type,
+                    "job_data": job_data,
+                },
+            ],
+            task_id=str(job.id),
+        )
 
         # Return acceptance response
         return Response(
@@ -193,6 +212,10 @@ async def get_job_status(
         job.completed_at.isoformat() if job.completed_at is not None else None
     )
 
+    cancelled_at_value = (
+        job.cancelled_at.isoformat() if job.cancelled_at is not None else None
+    )
+
     return JobStatusResponse(
         job_id=str(job.id),
         job_type=str(job.job_type),
@@ -204,4 +227,72 @@ async def get_job_status(
         created_at=created_at_value,
         started_at=started_at_value,
         completed_at=completed_at_value,
+        cancelled_at=cancelled_at_value,
     )
+
+
+# Non-cancellable terminal states
+_NON_CANCELLABLE_STATUSES = {"completed", "failed", "cancelled"}
+
+
+@router.post(
+    "/{job_id}/cancel",
+    response_model=CancelJobResponse,
+    tags=["Jobs"],
+    summary="Cancel a job",
+    description="Cancel a pending or running job. Returns 409 if the job is already completed, failed, or cancelled.",
+)
+async def cancel_job(
+    job_id: UUID,
+    force: bool = False,
+    session: AsyncSession = Depends(get_db),
+) -> CancelJobResponse:
+    """Cancel a pending or running job.
+
+    Args:
+        job_id: The UUID of the job to cancel
+        force: If True, send SIGTERM to terminate a stuck worker process
+        session: Database session injected by FastAPI dependency
+
+    Returns:
+        CancelJobResponse with job_id and status "cancelling"
+
+    Raises:
+        HTTPException: 404 if job not found, 409 if job is in a terminal state
+    """
+    repository = AsyncGenericRepository(session=session, model=Job)
+    job = await repository.get(id=str(job_id))
+
+    if job is None:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND,
+            detail=f"Job with id '{job_id}' not found",
+        )
+
+    # Idempotent: already cancelling
+    if job.status == "cancelling":
+        return CancelJobResponse(job_id=str(job.id), status="cancelling")
+
+    # Cannot cancel terminal states
+    if job.status in _NON_CANCELLABLE_STATUSES:
+        raise HTTPException(
+            status_code=HTTPStatus.CONFLICT,
+            detail=f"Job with status '{job.status}' cannot be cancelled",
+        )
+
+    # Set Redis cancellation flag
+    redis_client = redis.Redis.from_url(get_redis_url())
+    cancel_service = CancellationService(redis_client)
+    cancel_service.request_cancel(str(job_id))
+
+    # Update job status
+    job.status = "cancelling"
+    await repository.update(obj=job)
+
+    # Revoke the Celery task (prevents pending tasks from executing)
+    celery_app.control.revoke(str(job_id))
+
+    if force:
+        celery_app.control.revoke(str(job_id), terminate=True, signal="SIGTERM")
+
+    return CancelJobResponse(job_id=str(job.id), status="cancelling")

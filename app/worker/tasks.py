@@ -9,12 +9,15 @@ workflow execution and result storage.
 from contextlib import contextmanager
 from datetime import datetime
 
+import redis
+
 from app.core.context import WorkflowContext
 from app.database.job import Job
 from app.database.repository import GenericRepository
 from app.database.session import db_session
+from app.services.cancellation import CancellationService
 from app.utils.logger import logger
-from app.worker.config import celery_app
+from app.worker.config import celery_app, get_redis_url
 from app.workflows.registry import get_workflow
 
 _dynamic_tasks: dict[str, object] = {}
@@ -50,12 +53,19 @@ def _process_job_impl(job_id: str, meta: dict | None = None):
                         exc_info=True,
                     )
 
+            # Set up cancellation checker
+            redis_client = redis.Redis.from_url(get_redis_url())
+            cancel_service = CancellationService(redis_client)
+
             # Create workflow context
             context = WorkflowContext(
                 job_id=str(db_job.id),
                 job_data=db_job.data,
             )
             context._on_progress = persist_progress
+            context._cancel_checker = lambda: cancel_service.is_cancelled(
+                str(db_job.id)
+            )
 
             # Get and execute workflow
             workflow = get_workflow(db_job.job_type)
@@ -71,6 +81,11 @@ def _process_job_impl(job_id: str, meta: dict | None = None):
                 100.0 if context.status == "completed" else context.progress
             )
             db_job.progress_message = context.progress_message
+
+            # Clean up cancellation flag if job was cancelled
+            if context.status == "cancelled":
+                db_job.cancelled_at = datetime.now()
+                cancel_service.clear(str(db_job.id))
 
             repository.update(obj=db_job)
 
