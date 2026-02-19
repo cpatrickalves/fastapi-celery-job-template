@@ -239,7 +239,7 @@ class TestBaseWorkflowCancellation:
 class TestWorkerTaskCancellation:
     """Tests for _process_job_impl cancellation handling."""
 
-    def _make_db_job(self, job_id, status="pending"):
+    def _make_db_job(self, job_id, status="pending") -> MagicMock:
         """Create a mock DB job object."""
         job = MagicMock()
         job.id = job_id
