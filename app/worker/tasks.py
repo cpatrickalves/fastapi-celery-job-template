@@ -9,15 +9,13 @@ workflow execution and result storage.
 from contextlib import contextmanager
 from datetime import datetime
 
-import redis
-
 from app.core.context import WorkflowContext
 from app.database.job import Job
 from app.database.repository import GenericRepository
 from app.database.session import db_session
-from app.services.cancellation import CancellationService
 from app.utils.logger import logger
-from app.worker.config import celery_app, get_redis_url
+from app.worker.cancel import clear_cancel, is_cancelled
+from app.worker.config import celery_app, get_redis_client
 from app.workflows.registry import get_workflow
 
 _dynamic_tasks: dict[str, object] = {}
@@ -54,8 +52,7 @@ def _process_job_impl(job_id: str, meta: dict | None = None):
                     )
 
             # Set up cancellation checker
-            redis_client = redis.Redis.from_url(get_redis_url())
-            cancel_service = CancellationService(redis_client)
+            redis_client = get_redis_client()
 
             # Create workflow context
             context = WorkflowContext(
@@ -63,9 +60,7 @@ def _process_job_impl(job_id: str, meta: dict | None = None):
                 job_data=db_job.data,
             )
             context._on_progress = persist_progress
-            context._cancel_checker = lambda: cancel_service.is_cancelled(
-                str(db_job.id)
-            )
+            context._cancel_checker = lambda: is_cancelled(redis_client, str(db_job.id))
 
             # Get and execute workflow
             workflow = get_workflow(db_job.job_type)
@@ -85,7 +80,7 @@ def _process_job_impl(job_id: str, meta: dict | None = None):
             # Clean up cancellation flag if job was cancelled
             if context.status == "cancelled":
                 db_job.cancelled_at = datetime.now()
-                cancel_service.clear(str(db_job.id))
+                clear_cancel(redis_client, str(db_job.id))
 
             repository.update(obj=db_job)
 
