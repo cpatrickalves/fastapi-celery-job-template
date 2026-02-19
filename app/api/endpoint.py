@@ -67,7 +67,10 @@ class JobStatusResponse(BaseModel):
 
 
 class CancelJobResponse(BaseModel):
-    """Response model for job cancellation."""
+    """Response model for job cancellation.
+
+    Status will be "cancelled" on success.
+    """
 
     job_id: str
     status: str
@@ -246,18 +249,20 @@ _NON_CANCELLABLE_STATUSES = {"completed", "failed", "cancelled"}
 )
 async def cancel_job(
     job_id: UUID,
-    force: bool = False,
     session: AsyncSession = Depends(get_db),
 ) -> CancelJobResponse:
     """Cancel a pending or running job.
 
+    Uses terminate=True to send SIGTERM to the worker process, ensuring
+    the job actually stops. The endpoint finalizes the status to
+    "cancelled" directly since the terminated worker can't update the DB.
+
     Args:
         job_id: The UUID of the job to cancel
-        force: If True, send SIGTERM to terminate a stuck worker process
         session: Database session injected by FastAPI dependency
 
     Returns:
-        CancelJobResponse with job_id and status "cancelling"
+        CancelJobResponse with job_id and status "cancelled"
 
     Raises:
         HTTPException: 404 if job not found, 409 if job is in a terminal state
@@ -267,7 +272,7 @@ async def cancel_job(
         update(Job)
         .where(Job.id == str(job_id))
         .where(Job.status.notin_(_NON_CANCELLABLE_STATUSES | {"cancelling"}))
-        .values(status="cancelling")
+        .values(status="cancelled", cancelled_at=datetime.now())
     )
     await session.flush()
 
@@ -280,34 +285,21 @@ async def cancel_job(
                 status_code=HTTPStatus.NOT_FOUND,
                 detail=f"Job with id '{job_id}' not found",
             )
-        if job.status == "cancelling":
-            return CancelJobResponse(job_id=str(job.id), status="cancelling")
+        if job.status in ("cancelling", "cancelled"):
+            return CancelJobResponse(job_id=str(job.id), status="cancelled")
         raise HTTPException(
             status_code=HTTPStatus.CONFLICT,
             detail=f"Job with status '{job.status}' cannot be cancelled",
         )
 
-    # Set Redis cancellation flag (sync call → run in thread)
+    # Set Redis cancellation flag as safety net for worker (sync call → thread)
     redis_client = get_redis_client()
     await asyncio.to_thread(request_cancel, redis_client, str(job_id))
 
-    # Revoke the Celery task
-    if force:
-        logger.warning(f"Force-cancelling job {job_id}: sending SIGTERM to worker")
-        await asyncio.to_thread(
-            celery_app.control.revoke, str(job_id), terminate=True, signal="SIGTERM"
-        )
-        # SIGTERM kills the worker — it can't update the DB itself,
-        # so finalize the status here.
-        await session.execute(
-            update(Job)
-            .where(Job.id == str(job_id))
-            .where(Job.status == "cancelling")
-            .values(status="cancelled", cancelled_at=datetime.now())
-        )
-        await session.flush()
-        return CancelJobResponse(job_id=str(job_id), status="cancelled")
-    else:
-        await asyncio.to_thread(celery_app.control.revoke, str(job_id))
+    # Revoke + terminate the Celery task
+    logger.info(f"Cancelling job {job_id}: revoking task with SIGTERM")
+    await asyncio.to_thread(
+        celery_app.control.revoke, str(job_id), terminate=True, signal="SIGTERM"
+    )
 
-    return CancelJobResponse(job_id=str(job_id), status="cancelling")
+    return CancelJobResponse(job_id=str(job_id), status="cancelled")

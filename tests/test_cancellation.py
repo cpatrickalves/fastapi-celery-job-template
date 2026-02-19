@@ -306,7 +306,7 @@ class TestWorkerTaskCancellation:
     @patch("app.worker.tasks.clear_cancel")
     @patch("app.worker.tasks.get_workflow")
     @patch("app.worker.tasks.db_session")
-    def test_cancel_detected_after_workflow_via_db_recheck(
+    def test_cancel_detected_after_workflow_via_db_recheck_cancelling(
         self,
         mock_db_session,
         mock_get_workflow,
@@ -314,7 +314,7 @@ class TestWorkerTaskCancellation:
         mock_is_cancelled,
         mock_get_redis,
     ) -> None:
-        """Worker should detect cancel via DB re-check after workflow completes."""
+        """Worker should detect cancel via DB re-check when status is 'cancelling'."""
         from app.worker.tasks import _process_job_impl
 
         db_job = self._make_db_job("job-3", status="processing")
@@ -337,7 +337,7 @@ class TestWorkerTaskCancellation:
         mock_workflow = NormalWorkflow()
         mock_get_workflow.return_value = mock_workflow
 
-        # Simulate DB refresh showing "cancelling" (cancel endpoint updated DB)
+        # Simulate DB refresh showing "cancelling"
         def fake_refresh(obj):
             obj.status = "cancelling"
 
@@ -345,6 +345,52 @@ class TestWorkerTaskCancellation:
 
         with patch("app.worker.tasks.GenericRepository", return_value=mock_repo):
             result = _process_job_impl("job-3")
+
+        assert result["status"] == "cancelled"
+        assert db_job.status == "cancelled"
+        mock_clear_cancel.assert_called_once()
+
+    @patch("app.worker.tasks.get_redis_client")
+    @patch("app.worker.tasks.is_cancelled")
+    @patch("app.worker.tasks.clear_cancel")
+    @patch("app.worker.tasks.get_workflow")
+    @patch("app.worker.tasks.db_session")
+    def test_cancel_detected_after_workflow_via_db_recheck_cancelled(
+        self,
+        mock_db_session,
+        mock_get_workflow,
+        mock_clear_cancel,
+        mock_is_cancelled,
+        mock_get_redis,
+    ) -> None:
+        """Worker should detect cancel via DB re-check when status is 'cancelled'."""
+        from app.worker.tasks import _process_job_impl
+
+        db_job = self._make_db_job("job-4", status="processing")
+        mock_session = MagicMock()
+        mock_repo = MagicMock()
+        mock_repo.get.return_value = db_job
+
+        mock_db_session.return_value = iter([mock_session])
+        mock_redis = MagicMock()
+        mock_get_redis.return_value = mock_redis
+
+        mock_is_cancelled.return_value = False
+
+        class NormalWorkflow(BaseWorkflow):
+            def process(self, context: WorkflowContext) -> None:
+                context.set_result({"done": True})
+
+        mock_get_workflow.return_value = NormalWorkflow()
+
+        # Simulate DB refresh showing "cancelled" (endpoint sets it directly now)
+        def fake_refresh(obj):
+            obj.status = "cancelled"
+
+        mock_session.refresh.side_effect = fake_refresh
+
+        with patch("app.worker.tasks.GenericRepository", return_value=mock_repo):
+            result = _process_job_impl("job-4")
 
         assert result["status"] == "cancelled"
         assert db_job.status == "cancelled"

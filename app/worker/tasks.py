@@ -79,7 +79,7 @@ def _process_job_impl(job_id: str, meta: dict | None = None):
             # (handles race where cancel was requested during process())
             if context.status not in ("cancelled", "failed"):
                 session.refresh(db_job)
-                if db_job.status == "cancelling":
+                if db_job.status in ("cancelling", "cancelled"):
                     context.cancel()
 
             # Store results
