@@ -1,6 +1,6 @@
 [project]
 name = "app"
-version = "0.9.3"
+version = "0.10.0"
 description = "FastAPI Celery Job Template - Job-driven async processing"
 requires-python = ">=3.12"
 dependencies = [
