@@ -5,11 +5,12 @@ Tests cover:
 - Cancellation Redis flag management functions
 - WorkflowContext cancellation methods
 - BaseWorkflow cancellation between lifecycle hooks
+- Worker task cancellation handling (_process_job_impl)
 """
 
 from datetime import datetime
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -230,3 +231,121 @@ class TestBaseWorkflowCancellation:
 
         assert result.status == "cancelled"
         assert result.completed_at is not None
+
+
+# ---------- Worker Task Cancellation ----------
+
+
+class TestWorkerTaskCancellation:
+    """Tests for _process_job_impl cancellation handling."""
+
+    def _make_db_job(self, job_id, status="pending"):
+        """Create a mock DB job object."""
+        job = MagicMock()
+        job.id = job_id
+        job.status = status
+        job.data = {"job_type": "test", "message": "hello"}
+        job.job_type = "test"
+        job.started_at = None
+        job.cancelled_at = None
+        return job
+
+    @patch("app.worker.tasks.get_redis_client")
+    @patch("app.worker.tasks.clear_cancel")
+    @patch("app.worker.tasks.db_session")
+    def test_cancelling_job_finalized_before_processing(
+        self, mock_db_session, mock_clear_cancel, mock_get_redis
+    ) -> None:
+        """Worker should finalize as cancelled if job is 'cancelling' at pickup."""
+        from app.worker.tasks import _process_job_impl
+
+        db_job = self._make_db_job("job-1", status="cancelling")
+        mock_session = MagicMock()
+        mock_repo = MagicMock()
+        mock_repo.get.return_value = db_job
+
+        # Patch the contextmanager and repository
+        mock_db_session.return_value = iter([mock_session])
+        mock_redis = MagicMock()
+        mock_get_redis.return_value = mock_redis
+
+        with patch("app.worker.tasks.GenericRepository", return_value=mock_repo):
+            result = _process_job_impl("job-1")
+
+        assert result["status"] == "cancelled"
+        assert db_job.status == "cancelled"
+        assert db_job.cancelled_at is not None
+        mock_clear_cancel.assert_called_once_with(mock_redis, "job-1")
+
+    @patch("app.worker.tasks.get_redis_client")
+    @patch("app.worker.tasks.clear_cancel")
+    @patch("app.worker.tasks.db_session")
+    def test_cancelled_job_finalized_before_processing(
+        self, mock_db_session, mock_clear_cancel, mock_get_redis
+    ) -> None:
+        """Worker should finalize if job is already 'cancelled' at pickup."""
+        from app.worker.tasks import _process_job_impl
+
+        db_job = self._make_db_job("job-2", status="cancelled")
+        mock_session = MagicMock()
+        mock_repo = MagicMock()
+        mock_repo.get.return_value = db_job
+
+        mock_db_session.return_value = iter([mock_session])
+        mock_redis = MagicMock()
+        mock_get_redis.return_value = mock_redis
+
+        with patch("app.worker.tasks.GenericRepository", return_value=mock_repo):
+            result = _process_job_impl("job-2")
+
+        assert result["status"] == "cancelled"
+        assert db_job.cancelled_at is not None
+
+    @patch("app.worker.tasks.get_redis_client")
+    @patch("app.worker.tasks.is_cancelled")
+    @patch("app.worker.tasks.clear_cancel")
+    @patch("app.worker.tasks.get_workflow")
+    @patch("app.worker.tasks.db_session")
+    def test_cancel_detected_after_workflow_via_db_recheck(
+        self,
+        mock_db_session,
+        mock_get_workflow,
+        mock_clear_cancel,
+        mock_is_cancelled,
+        mock_get_redis,
+    ) -> None:
+        """Worker should detect cancel via DB re-check after workflow completes."""
+        from app.worker.tasks import _process_job_impl
+
+        db_job = self._make_db_job("job-3", status="processing")
+        mock_session = MagicMock()
+        mock_repo = MagicMock()
+        mock_repo.get.return_value = db_job
+
+        mock_db_session.return_value = iter([mock_session])
+        mock_redis = MagicMock()
+        mock_get_redis.return_value = mock_redis
+
+        # Redis flag is NOT set (cancel arrived after Redis check but before DB write)
+        mock_is_cancelled.return_value = False
+
+        # Workflow completes normally (status="completed")
+        class NormalWorkflow(BaseWorkflow):
+            def process(self, context: WorkflowContext) -> None:
+                context.set_result({"done": True})
+
+        mock_workflow = NormalWorkflow()
+        mock_get_workflow.return_value = mock_workflow
+
+        # Simulate DB refresh showing "cancelling" (cancel endpoint updated DB)
+        def fake_refresh(obj):
+            obj.status = "cancelling"
+
+        mock_session.refresh.side_effect = fake_refresh
+
+        with patch("app.worker.tasks.GenericRepository", return_value=mock_repo):
+            result = _process_job_impl("job-3")
+
+        assert result["status"] == "cancelled"
+        assert db_job.status == "cancelled"
+        mock_clear_cancel.assert_called_once()

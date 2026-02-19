@@ -297,6 +297,16 @@ async def cancel_job(
         await asyncio.to_thread(
             celery_app.control.revoke, str(job_id), terminate=True, signal="SIGTERM"
         )
+        # SIGTERM kills the worker — it can't update the DB itself,
+        # so finalize the status here.
+        await session.execute(
+            update(Job)
+            .where(Job.id == str(job_id))
+            .where(Job.status == "cancelling")
+            .values(status="cancelled", cancelled_at=datetime.now())
+        )
+        await session.flush()
+        return CancelJobResponse(job_id=str(job_id), status="cancelled")
     else:
         await asyncio.to_thread(celery_app.control.revoke, str(job_id))
 

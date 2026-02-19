@@ -33,6 +33,15 @@ def _process_job_impl(job_id: str, meta: dict | None = None):
         if db_job is None:
             raise ValueError(f"Job with id {job_id} not found")
 
+        # If job was cancelled before worker picked it up, finalize immediately
+        if db_job.status in ("cancelling", "cancelled"):
+            redis_client = get_redis_client()
+            db_job.status = "cancelled"
+            db_job.cancelled_at = datetime.now()
+            clear_cancel(redis_client, str(db_job.id))
+            repository.update(obj=db_job)
+            return {"job_id": job_id, "status": "cancelled"}
+
         # Update status to processing
         db_job.status = "processing"
         db_job.started_at = datetime.now()
@@ -65,6 +74,13 @@ def _process_job_impl(job_id: str, meta: dict | None = None):
             # Get and execute workflow
             workflow = get_workflow(db_job.job_type)
             context = workflow.run(context)
+
+            # If workflow didn't detect cancellation itself, re-check DB
+            # (handles race where cancel was requested during process())
+            if context.status not in ("cancelled", "failed"):
+                session.refresh(db_job)
+                if db_job.status == "cancelling":
+                    context.cancel()
 
             # Store results
             db_job.result = context.result
