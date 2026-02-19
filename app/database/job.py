@@ -37,6 +37,7 @@ class Job(Base):
         created_at: When the job was created
         started_at: When processing started
         completed_at: When processing completed
+        cancelled_at: Optional[datetime] — Timestamp when the job was cancelled
         updated_at: When the job was last updated
     """
 
