@@ -42,10 +42,28 @@ def _process_job_impl(job_id: str, meta: dict | None = None):
             repository.update(obj=db_job)
             return {"job_id": job_id, "status": "cancelled"}
 
-        # Update status to processing
-        db_job.status = "processing"
-        db_job.started_at = datetime.now()
-        repository.update(obj=db_job)
+        # Atomically transition pending → processing to prevent race with cancellation
+        transitioned = repository.conditional_update_status(
+            id=job_id,
+            from_status="pending",
+            to_status="processing",
+            started_at=datetime.now(),
+        )
+        if not transitioned:
+            # Another process changed the status; re-read and handle
+            session.refresh(db_job)
+            if db_job.status in ("cancelling", "cancelled"):
+                redis_client = get_redis_client()
+                db_job.status = "cancelled"
+                db_job.cancelled_at = datetime.now()
+                clear_cancel(redis_client, str(db_job.id))
+                repository.update(obj=db_job)
+                return {"job_id": job_id, "status": "cancelled"}
+            # Already processing (duplicate delivery) or other state — skip
+            return {"job_id": job_id, "status": db_job.status}
+
+        # Refresh in-memory object after the bulk UPDATE
+        session.refresh(db_job)
 
         try:
             # Progress persistence callback

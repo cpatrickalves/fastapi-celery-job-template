@@ -395,3 +395,38 @@ class TestWorkerTaskCancellation:
         assert result["status"] == "cancelled"
         assert db_job.status == "cancelled"
         mock_clear_cancel.assert_called_once()
+
+    @patch("app.worker.tasks.get_redis_client")
+    @patch("app.worker.tasks.clear_cancel")
+    @patch("app.worker.tasks.db_session")
+    def test_race_condition_cancel_during_pending_to_processing(
+        self, mock_db_session, mock_clear_cancel, mock_get_redis
+    ) -> None:
+        """If cancel races with pending→processing transition, job should finalize as cancelled."""
+        from app.worker.tasks import _process_job_impl
+
+        db_job = self._make_db_job("job-5", status="pending")
+        mock_session = MagicMock()
+        mock_repo = MagicMock()
+        mock_repo.get.return_value = db_job
+
+        # conditional_update_status returns False — another process changed the status
+        mock_repo.conditional_update_status.return_value = False
+
+        mock_db_session.return_value = iter([mock_session])
+        mock_redis = MagicMock()
+        mock_get_redis.return_value = mock_redis
+
+        # Simulate refresh showing status changed to "cancelling" by the cancel endpoint
+        def fake_refresh(obj):
+            obj.status = "cancelling"
+
+        mock_session.refresh.side_effect = fake_refresh
+
+        with patch("app.worker.tasks.GenericRepository", return_value=mock_repo):
+            result = _process_job_impl("job-5")
+
+        assert result["status"] == "cancelled"
+        assert db_job.status == "cancelled"
+        assert db_job.cancelled_at is not None
+        mock_clear_cancel.assert_called_once_with(mock_redis, "job-5")
