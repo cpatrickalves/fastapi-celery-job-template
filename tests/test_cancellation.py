@@ -2,7 +2,7 @@
 Tests for job cancellation feature.
 
 Tests cover:
-- CancellationService Redis flag management
+- Cancellation Redis flag management functions
 - WorkflowContext cancellation methods
 - BaseWorkflow cancellation between lifecycle hooks
 """
@@ -14,22 +14,27 @@ from unittest.mock import MagicMock
 import pytest
 
 from app.core.context import WorkflowContext
-from app.services.cancellation import CancellationService, CANCEL_KEY_PREFIX, CANCEL_TTL
+from app.worker.cancel import (
+    CANCEL_KEY_PREFIX,
+    CANCEL_TTL,
+    clear_cancel,
+    is_cancelled,
+    request_cancel,
+)
 from app.workflows.base import BaseWorkflow
 
 
-# ---------- CancellationService ----------
+# ---------- Cancellation Functions ----------
 
 
-class TestCancellationService:
-    """Tests for CancellationService Redis flag management."""
+class TestCancellationFunctions:
+    """Tests for cancellation Redis flag management functions."""
 
     def test_request_cancel_sets_redis_flag(self) -> None:
         """request_cancel() should set a Redis key with TTL."""
         mock_redis = MagicMock()
-        service = CancellationService(mock_redis)
 
-        service.request_cancel("job-123")
+        request_cancel(mock_redis, "job-123")
 
         mock_redis.set.assert_called_once_with(
             f"{CANCEL_KEY_PREFIX}job-123", "1", ex=CANCEL_TTL
@@ -39,25 +44,22 @@ class TestCancellationService:
         """is_cancelled() should return True when the Redis key exists."""
         mock_redis = MagicMock()
         mock_redis.exists.return_value = 1
-        service = CancellationService(mock_redis)
 
-        assert service.is_cancelled("job-123") is True
+        assert is_cancelled(mock_redis, "job-123") is True
         mock_redis.exists.assert_called_once_with(f"{CANCEL_KEY_PREFIX}job-123")
 
     def test_is_cancelled_returns_false_when_no_flag(self) -> None:
         """is_cancelled() should return False when the Redis key doesn't exist."""
         mock_redis = MagicMock()
         mock_redis.exists.return_value = 0
-        service = CancellationService(mock_redis)
 
-        assert service.is_cancelled("job-123") is False
+        assert is_cancelled(mock_redis, "job-123") is False
 
-    def test_clear_deletes_redis_flag(self) -> None:
-        """clear() should delete the Redis key."""
+    def test_clear_cancel_deletes_redis_flag(self) -> None:
+        """clear_cancel() should delete the Redis key."""
         mock_redis = MagicMock()
-        service = CancellationService(mock_redis)
 
-        service.clear("job-123")
+        clear_cancel(mock_redis, "job-123")
 
         mock_redis.delete.assert_called_once_with(f"{CANCEL_KEY_PREFIX}job-123")
 
