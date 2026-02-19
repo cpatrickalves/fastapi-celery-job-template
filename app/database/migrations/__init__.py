@@ -12,6 +12,7 @@ def run_migrations() -> None:
         alembic_cfg = Config(str(alembic_ini))
 
         logger.info("Checking for pending database migrations...")
+        alembic_cfg.attributes["skip_logging_config"] = True
         command.upgrade(alembic_cfg, "head")
         logger.info("Database migrations completed successfully.")
 

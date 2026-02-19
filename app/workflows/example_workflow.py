@@ -36,9 +36,9 @@ class ExampleWorkflow(BaseWorkflow):
 
         # Simulate long-running process
         context.set_progress(20.0, "Processing simulation started")
-        time.sleep(10)
+        time.sleep(30)
         context.set_progress(50.0, "Processing simulation halfway")
-        time.sleep(10)
+        time.sleep(20)
         context.set_progress(80.0, "Processing simulation complete")
 
         # Perform transformation

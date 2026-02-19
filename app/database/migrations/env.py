@@ -24,9 +24,13 @@ load_dotenv()
 # access to the values within the .ini file in use.
 config = context.config
 
-# Interpret the config file for Python logging.
-# This line sets up loggers basically.
-if config.config_file_name is not None:
+# Skip fileConfig when running programmatically — loguru's InterceptHandler
+# already routes alembic/sqlalchemy logs. Calling fileConfig here would
+# override that and send alembic output to stderr, causing log ordering
+# issues with loguru's stdout output in Docker.
+if config.config_file_name is not None and not config.attributes.get(
+    "skip_logging_config", False
+):
     fileConfig(config.config_file_name)
 
 # add your model's MetaData object here
