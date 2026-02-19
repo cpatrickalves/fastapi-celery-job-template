@@ -13,23 +13,25 @@ Endpoints:
 - POST /{job_id}/cancel: Cancel a pending or running job
 """
 
+import asyncio
 import json
 from datetime import datetime
 from http import HTTPStatus
 from typing import Any, Callable, Type
 from uuid import UUID
 
-import redis
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import Response
 
 from app.database.job import Job
 from app.database.repository import AsyncGenericRepository
 from app.database.session import get_db
-from app.services.cancellation import CancellationService
-from app.worker.config import celery_app, get_redis_url
+from app.utils.logger import logger
+from app.worker.cancel import request_cancel
+from app.worker.config import celery_app, get_redis_client
 from app.workflows.config import register_all_workflows
 from app.workflows.schemas.base import BaseJobSchema
 from app.workflows.schemas.registry import get_all_schemas
@@ -260,39 +262,42 @@ async def cancel_job(
     Raises:
         HTTPException: 404 if job not found, 409 if job is in a terminal state
     """
-    repository = AsyncGenericRepository(session=session, model=Job)
-    job = await repository.get(id=str(job_id))
+    # Atomic conditional UPDATE to avoid TOCTOU race
+    result = await session.execute(
+        update(Job)
+        .where(Job.id == str(job_id))
+        .where(Job.status.notin_(_NON_CANCELLABLE_STATUSES | {"cancelling"}))
+        .values(status="cancelling")
+    )
+    await session.flush()
 
-    if job is None:
-        raise HTTPException(
-            status_code=HTTPStatus.NOT_FOUND,
-            detail=f"Job with id '{job_id}' not found",
-        )
-
-    # Idempotent: already cancelling
-    if job.status == "cancelling":
-        return CancelJobResponse(job_id=str(job.id), status="cancelling")
-
-    # Cannot cancel terminal states
-    if job.status in _NON_CANCELLABLE_STATUSES:
+    if result.rowcount == 0:
+        # Determine why: 404, idempotent, or 409
+        repository = AsyncGenericRepository(session=session, model=Job)
+        job = await repository.get(id=str(job_id))
+        if job is None:
+            raise HTTPException(
+                status_code=HTTPStatus.NOT_FOUND,
+                detail=f"Job with id '{job_id}' not found",
+            )
+        if job.status == "cancelling":
+            return CancelJobResponse(job_id=str(job.id), status="cancelling")
         raise HTTPException(
             status_code=HTTPStatus.CONFLICT,
             detail=f"Job with status '{job.status}' cannot be cancelled",
         )
 
-    # Set Redis cancellation flag
-    redis_client = redis.Redis.from_url(get_redis_url())
-    cancel_service = CancellationService(redis_client)
-    cancel_service.request_cancel(str(job_id))
+    # Set Redis cancellation flag (sync call → run in thread)
+    redis_client = get_redis_client()
+    await asyncio.to_thread(request_cancel, redis_client, str(job_id))
 
-    # Update job status
-    job.status = "cancelling"
-    await repository.update(obj=job)
-
-    # Revoke the Celery task (prevents pending tasks from executing)
-    celery_app.control.revoke(str(job_id))
-
+    # Revoke the Celery task
     if force:
-        celery_app.control.revoke(str(job_id), terminate=True, signal="SIGTERM")
+        logger.warning(f"Force-cancelling job {job_id}: sending SIGTERM to worker")
+        await asyncio.to_thread(
+            celery_app.control.revoke, str(job_id), terminate=True, signal="SIGTERM"
+        )
+    else:
+        await asyncio.to_thread(celery_app.control.revoke, str(job_id))
 
-    return CancelJobResponse(job_id=str(job.id), status="cancelling")
+    return CancelJobResponse(job_id=str(job_id), status="cancelling")
