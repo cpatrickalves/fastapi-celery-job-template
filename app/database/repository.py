@@ -8,7 +8,7 @@ methods for querying and updating data.
 
 from typing import Generic, List, Optional, Type, TypeVar
 
-from sqlalchemy import desc, func, select
+from sqlalchemy import desc, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
@@ -51,6 +51,22 @@ class GenericRepository(Generic[T]):
 
     def count(self) -> int:
         return self.session.query(self.model).count()
+
+    def conditional_update_status(
+        self, id: str, from_status: str, to_status: str, **extra_fields
+    ) -> bool:
+        """Atomically update status only if current status matches from_status.
+
+        Returns True if the update succeeded (rowcount > 0).
+        """
+        stmt = (
+            update(self.model)
+            .where(self.model.id == id, self.model.status == from_status)
+            .values(status=to_status, **extra_fields)
+        )
+        result = self.session.execute(stmt)
+        self.session.commit()
+        return result.rowcount > 0
 
     def exists(self, **kwargs) -> bool:
         return self.session.query(

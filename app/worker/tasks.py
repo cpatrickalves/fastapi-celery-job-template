@@ -14,7 +14,8 @@ from app.database.job import Job
 from app.database.repository import GenericRepository
 from app.database.session import db_session
 from app.utils.logger import logger
-from app.worker.config import celery_app
+from app.worker.cancel import clear_cancel, is_cancelled
+from app.worker.config import celery_app, get_redis_client
 from app.workflows.registry import get_workflow
 
 _dynamic_tasks: dict[str, object] = {}
@@ -32,10 +33,37 @@ def _process_job_impl(job_id: str, meta: dict | None = None):
         if db_job is None:
             raise ValueError(f"Job with id {job_id} not found")
 
-        # Update status to processing
-        db_job.status = "processing"
-        db_job.started_at = datetime.now()
-        repository.update(obj=db_job)
+        # If job was cancelled before worker picked it up, finalize immediately
+        if db_job.status in ("cancelling", "cancelled"):
+            redis_client = get_redis_client()
+            db_job.status = "cancelled"
+            db_job.cancelled_at = datetime.now()
+            clear_cancel(redis_client, str(db_job.id))
+            repository.update(obj=db_job)
+            return {"job_id": job_id, "status": "cancelled"}
+
+        # Atomically transition pending → processing to prevent race with cancellation
+        transitioned = repository.conditional_update_status(
+            id=job_id,
+            from_status="pending",
+            to_status="processing",
+            started_at=datetime.now(),
+        )
+        if not transitioned:
+            # Another process changed the status; re-read and handle
+            session.refresh(db_job)
+            if db_job.status in ("cancelling", "cancelled"):
+                redis_client = get_redis_client()
+                db_job.status = "cancelled"
+                db_job.cancelled_at = datetime.now()
+                clear_cancel(redis_client, str(db_job.id))
+                repository.update(obj=db_job)
+                return {"job_id": job_id, "status": "cancelled"}
+            # Already processing (duplicate delivery) or other state — skip
+            return {"job_id": job_id, "status": db_job.status}
+
+        # Refresh in-memory object after the bulk UPDATE
+        session.refresh(db_job)
 
         try:
             # Progress persistence callback
@@ -50,16 +78,27 @@ def _process_job_impl(job_id: str, meta: dict | None = None):
                         exc_info=True,
                     )
 
+            # Set up cancellation checker
+            redis_client = get_redis_client()
+
             # Create workflow context
             context = WorkflowContext(
                 job_id=str(db_job.id),
                 job_data=db_job.data,
             )
             context._on_progress = persist_progress
+            context._cancel_checker = lambda: is_cancelled(redis_client, str(db_job.id))
 
             # Get and execute workflow
             workflow = get_workflow(db_job.job_type)
             context = workflow.run(context)
+
+            # If workflow didn't detect cancellation itself, re-check DB
+            # (handles race where cancel was requested during process())
+            if context.status not in ("cancelled", "failed"):
+                session.refresh(db_job)
+                if db_job.status in ("cancelling", "cancelled"):
+                    context.cancel()
 
             # Store results
             db_job.result = context.result
@@ -71,6 +110,11 @@ def _process_job_impl(job_id: str, meta: dict | None = None):
                 100.0 if context.status == "completed" else context.progress
             )
             db_job.progress_message = context.progress_message
+
+            # Clean up cancellation flag if job was cancelled
+            if context.status == "cancelled":
+                db_job.cancelled_at = datetime.now()
+                clear_cancel(redis_client, str(db_job.id))
 
             repository.update(obj=db_job)
 

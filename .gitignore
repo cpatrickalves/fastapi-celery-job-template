@@ -99,3 +99,5 @@ logbook/
 .claude
 .pytest_cache
 .ruff_cache
+plans/
+reviews/

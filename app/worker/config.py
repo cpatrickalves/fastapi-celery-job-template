@@ -1,5 +1,6 @@
 import os
 
+import redis
 from celery import Celery
 from dotenv import load_dotenv
 
@@ -37,6 +38,16 @@ def get_celery_config():
         "task_send_sent_event": True,
         "worker_heartbeat_interval": 2,
     }
+
+
+_redis_pool = None
+
+
+def get_redis_client():
+    global _redis_pool
+    if _redis_pool is None:
+        _redis_pool = redis.ConnectionPool.from_url(get_redis_url())
+    return redis.Redis(connection_pool=_redis_pool)
 
 
 celery_app = Celery("tasks")

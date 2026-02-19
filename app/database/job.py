@@ -37,6 +37,7 @@ class Job(Base):
         created_at: When the job was created
         started_at: When processing started
         completed_at: When processing completed
+        cancelled_at: Timestamp when the job was cancelled
         updated_at: When the job was last updated
     """
 
@@ -106,6 +107,11 @@ class Job(Base):
         DateTime,
         nullable=True,
         doc="Timestamp when processing completed",
+    )
+    cancelled_at = Column(
+        DateTime,
+        nullable=True,
+        doc="Timestamp when the job was cancelled",
     )
     updated_at = Column(
         DateTime,

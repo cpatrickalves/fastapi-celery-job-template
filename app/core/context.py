@@ -46,6 +46,7 @@ class WorkflowContext(BaseModel):
     progress_message: str | None = None
 
     _on_progress: Callable[[float, str | None], None] | None = PrivateAttr(default=None)
+    _cancel_checker: Callable[[], bool] | None = PrivateAttr(default=None)
 
     def log(self, message: str) -> None:
         """Add a log message to the context.
@@ -106,3 +107,19 @@ class WorkflowContext(BaseModel):
         """
         self.set_error(error)
         self.completed_at = datetime.now()
+
+    def check_cancelled(self) -> bool:
+        """Check if a cancellation has been requested for this job.
+
+        Returns:
+            True if the job should be cancelled, False otherwise.
+        """
+        if self._cancel_checker is not None:
+            return self._cancel_checker()
+        return False
+
+    def cancel(self) -> None:
+        """Mark the context as cancelled by user request."""
+        self.status = "cancelled"
+        self.completed_at = datetime.now()
+        self.log("Job cancelled by user request")
