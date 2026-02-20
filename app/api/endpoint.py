@@ -20,7 +20,7 @@ from http import HTTPStatus
 from typing import Any, Callable, Type
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -254,21 +254,36 @@ _NON_CANCELLABLE_STATUSES = {"completed", "failed", "cancelled"}
     response_model=CancelJobResponse,
     tags=["Jobs"],
     summary="Cancel a job",
-    description="Cancel a pending or running job. Returns 409 if the job is already completed, failed, or cancelled.",
+    description=(
+        "Cancel a pending or running job. Use `force=true` to send SIGTERM to the worker "
+        "process (last resort for stuck tasks). Returns 409 if the job is already in a terminal state."
+    ),
 )
 async def cancel_job(
     job_id: UUID,
+    force: bool = Query(
+        default=False,
+        description=(
+            "Force-terminate the worker process via SIGTERM. Use only as a last resort "
+            "for stuck tasks -- this kills the worker process, not the task, and may "
+            "affect other work on the same worker."
+        ),
+    ),
     session: AsyncSession = Depends(get_db),
 ) -> CancelJobResponse:
-    """Cancel a pending or running job using cooperative cancellation.
+    """Cancel a pending or running job.
 
-    Sets the job status to "cancelled" in the database, then makes best-effort
-    attempts to set a Redis cancellation flag and revoke the Celery task.
-    Running tasks are not forcefully terminated -- they detect cancellation
-    via Redis flag checks between workflow lifecycle hooks.
+    By default, uses cooperative cancellation: sets the DB status, a Redis flag,
+    and revokes the Celery task. Running tasks detect cancellation via Redis flag
+    checks between workflow lifecycle hooks.
+
+    With force=True, additionally sends SIGTERM to the worker process. This is a
+    last resort for tasks that ignore cooperative cancellation -- it kills the
+    worker OS process, not the individual task.
 
     Args:
         job_id: The UUID of the job to cancel
+        force: If True, send SIGTERM to terminate the worker process
         session: Database session injected by FastAPI dependency
 
     Returns:
@@ -315,7 +330,17 @@ async def cancel_job(
         )
 
     try:
-        await asyncio.to_thread(celery_app.control.revoke, str(job_id), terminate=False)
+        if force:
+            logger.warning(
+                f"Force-cancelling job {job_id}: sending SIGTERM to worker process"
+            )
+            await asyncio.to_thread(
+                celery_app.control.revoke, str(job_id), terminate=True, signal="SIGTERM"
+            )
+        else:
+            await asyncio.to_thread(
+                celery_app.control.revoke, str(job_id), terminate=False
+            )
     except Exception:
         logger.warning(f"Failed to revoke Celery task for job {job_id}", exc_info=True)
 
