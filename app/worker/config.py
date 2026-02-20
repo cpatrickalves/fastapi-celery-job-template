@@ -46,7 +46,12 @@ _redis_pool = None
 def get_redis_client():
     global _redis_pool
     if _redis_pool is None:
-        _redis_pool = redis.ConnectionPool.from_url(get_redis_url())
+        _redis_pool = redis.ConnectionPool.from_url(
+            get_redis_url(),
+            max_connections=int(os.environ.get("REDIS_MAX_CONNECTIONS", "20")),
+            socket_timeout=5,
+            socket_connect_timeout=5,
+        )
     return redis.Redis(connection_pool=_redis_pool)
 
 

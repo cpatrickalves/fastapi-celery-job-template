@@ -34,7 +34,7 @@ def _process_job_impl(job_id: str, meta: dict | None = None):
             raise ValueError(f"Job with id {job_id} not found")
 
         # If job was cancelled before worker picked it up, finalize immediately
-        if db_job.status in ("cancelling", "cancelled"):
+        if db_job.status == "cancelled":
             redis_client = get_redis_client()
             db_job.status = "cancelled"
             db_job.cancelled_at = datetime.now()
@@ -52,9 +52,8 @@ def _process_job_impl(job_id: str, meta: dict | None = None):
         if not transitioned:
             # Another process changed the status; re-read and handle
             session.refresh(db_job)
-            if db_job.status in ("cancelling", "cancelled"):
+            if db_job.status == "cancelled":
                 redis_client = get_redis_client()
-                db_job.status = "cancelled"
                 db_job.cancelled_at = datetime.now()
                 clear_cancel(redis_client, str(db_job.id))
                 repository.update(obj=db_job)
@@ -97,26 +96,34 @@ def _process_job_impl(job_id: str, meta: dict | None = None):
             # (handles race where cancel was requested during process())
             if context.status not in ("cancelled", "failed"):
                 session.refresh(db_job)
-                if db_job.status in ("cancelling", "cancelled"):
+                if db_job.status == "cancelled":
                     context.cancel()
 
-            # Store results
-            db_job.result = context.result
-            db_job.status = context.status
-            db_job.error = context.error
-            db_job.context = context.model_dump(mode="json")
-            db_job.completed_at = context.completed_at
-            db_job.progress = (
-                100.0 if context.status == "completed" else context.progress
-            )
-            db_job.progress_message = context.progress_message
-
-            # Clean up cancellation flag if job was cancelled
+            # Build final values for conditional write
+            final_values = {
+                "result": context.result,
+                "error": context.error,
+                "context": context.model_dump(mode="json"),
+                "completed_at": context.completed_at,
+                "progress": 100.0 if context.status == "completed" else context.progress,
+                "progress_message": context.progress_message,
+            }
             if context.status == "cancelled":
-                db_job.cancelled_at = datetime.now()
+                final_values["cancelled_at"] = datetime.now()
                 clear_cancel(redis_client, str(db_job.id))
 
-            repository.update(obj=db_job)
+            # Conditional write: only update if still in "processing" state
+            updated = repository.conditional_update_status(
+                id=job_id,
+                from_status="processing",
+                to_status=context.status,
+                **final_values,
+            )
+            if not updated:
+                session.refresh(db_job)
+                logger.warning(
+                    f"Job {job_id} status changed to '{db_job.status}' during processing"
+                )
 
             return {
                 "job_id": job_id,
@@ -127,11 +134,19 @@ def _process_job_impl(job_id: str, meta: dict | None = None):
 
         except Exception as e:
             logger.exception(f"Failed to process job {job_id}")
-            db_job.status = "failed"
-            db_job.error = f"{type(e).__name__}: {str(e)}"
-            db_job.completed_at = datetime.now()
-
-            repository.update(obj=db_job)
+            updated = repository.conditional_update_status(
+                id=job_id,
+                from_status="processing",
+                to_status="failed",
+                error=f"{type(e).__name__}: {str(e)}",
+                completed_at=datetime.now(),
+            )
+            if not updated:
+                session.refresh(db_job)
+                logger.warning(
+                    f"Job {job_id} exception handler: status is '{db_job.status}', "
+                    f"skipping failed write"
+                )
 
             return {"job_id": job_id, "status": "failed", "error": str(e)}
 
