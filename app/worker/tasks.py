@@ -85,12 +85,14 @@ def _process_job_impl(job_id: str, meta: dict | None = None):
                 job_id=str(db_job.id),
                 job_data=db_job.data,
             )
-            context._on_progress = persist_progress
-            context._cancel_checker = lambda: is_cancelled(redis_client, str(db_job.id))
-
             # Get and execute workflow
             workflow = get_workflow(db_job.job_type)
-            context = workflow.run(context)
+            cancel_checker = lambda: is_cancelled(redis_client, str(db_job.id))
+            context = workflow.run(
+                context,
+                cancel_checker=cancel_checker,
+                on_progress=persist_progress,
+            )
 
             # If workflow didn't detect cancellation itself, re-check DB
             # (handles race where cancel was requested during process())
@@ -105,7 +107,9 @@ def _process_job_impl(job_id: str, meta: dict | None = None):
                 "error": context.error,
                 "context": context.model_dump(mode="json"),
                 "completed_at": context.completed_at,
-                "progress": 100.0 if context.status == "completed" else context.progress,
+                "progress": 100.0
+                if context.status == "completed"
+                else context.progress,
                 "progress_message": context.progress_message,
             }
             if context.status == "cancelled":

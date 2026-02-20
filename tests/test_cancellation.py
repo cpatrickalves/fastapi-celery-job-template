@@ -71,32 +71,6 @@ class TestCancellationFunctions:
 class TestWorkflowContextCancellation:
     """Tests for cancellation methods on WorkflowContext."""
 
-    def test_check_cancelled_returns_false_without_checker(
-        self, sample_job_id: str, sample_job_data: dict[str, Any]
-    ) -> None:
-        """check_cancelled() should return False when no checker is set."""
-        context = WorkflowContext(job_id=sample_job_id, job_data=sample_job_data)
-
-        assert context.check_cancelled() is False
-
-    def test_check_cancelled_delegates_to_checker(
-        self, sample_job_id: str, sample_job_data: dict[str, Any]
-    ) -> None:
-        """check_cancelled() should call and return the checker result."""
-        context = WorkflowContext(job_id=sample_job_id, job_data=sample_job_data)
-        context._cancel_checker = lambda: True
-
-        assert context.check_cancelled() is True
-
-    def test_check_cancelled_returns_false_from_checker(
-        self, sample_job_id: str, sample_job_data: dict[str, Any]
-    ) -> None:
-        """check_cancelled() should return False when checker returns False."""
-        context = WorkflowContext(job_id=sample_job_id, job_data=sample_job_data)
-        context._cancel_checker = lambda: False
-
-        assert context.check_cancelled() is False
-
     def test_cancel_sets_status_and_timestamp(
         self, sample_job_id: str, sample_job_data: dict[str, Any]
     ) -> None:
@@ -118,16 +92,56 @@ class TestWorkflowContextCancellation:
 
         assert any("cancelled" in log.lower() for log in context.logs)
 
-    def test_cancel_checker_excluded_from_model_dump(
+
+class TestBaseWorkflowIsCancelled:
+    """Tests for is_cancelled() on BaseWorkflow."""
+
+    def test_is_cancelled_returns_false_without_checker(self) -> None:
+        """is_cancelled() should return False when no checker is set."""
+
+        class SimpleWorkflow(BaseWorkflow):
+            def process(self, context: WorkflowContext) -> None:
+                pass
+
+        workflow = SimpleWorkflow()
+        assert workflow.is_cancelled() is False
+
+    def test_is_cancelled_delegates_to_checker(self) -> None:
+        """is_cancelled() should call and return the checker result."""
+
+        class SimpleWorkflow(BaseWorkflow):
+            def process(self, context: WorkflowContext) -> None:
+                pass
+
+        workflow = SimpleWorkflow()
+        workflow._cancel_checker = lambda: True
+        assert workflow.is_cancelled() is True
+
+    def test_is_cancelled_returns_false_from_checker(self) -> None:
+        """is_cancelled() should return False when checker returns False."""
+
+        class SimpleWorkflow(BaseWorkflow):
+            def process(self, context: WorkflowContext) -> None:
+                pass
+
+        workflow = SimpleWorkflow()
+        workflow._cancel_checker = lambda: False
+        assert workflow.is_cancelled() is False
+
+    def test_cancel_checker_cleaned_up_after_run(
         self, sample_job_id: str, sample_job_data: dict[str, Any]
     ) -> None:
-        """_cancel_checker should not appear in serialized output."""
+        """_cancel_checker should be cleaned up in finally block after run()."""
+
+        class SimpleWorkflow(BaseWorkflow):
+            def process(self, context: WorkflowContext) -> None:
+                pass
+
+        workflow = SimpleWorkflow()
         context = WorkflowContext(job_id=sample_job_id, job_data=sample_job_data)
-        context._cancel_checker = lambda: False
-
-        dumped = context.model_dump(mode="json")
-
-        assert "_cancel_checker" not in dumped
+        workflow.run(context, cancel_checker=lambda: False)
+        assert workflow._cancel_checker is None
+        assert workflow._on_progress is None
 
 
 # ---------- BaseWorkflow Cancellation ----------
@@ -153,11 +167,10 @@ class TestBaseWorkflowCancellation:
                 process_called = True
 
         context = WorkflowContext(job_id=sample_job_id, job_data=sample_job_data)
-        # Return True only after before_process has been called
-        context._cancel_checker = lambda: cancel_after_before
 
         workflow = CancelAfterBeforeWorkflow()
-        result = workflow.run(context)
+        # Return True only after before_process has been called
+        result = workflow.run(context, cancel_checker=lambda: cancel_after_before)
 
         assert result.status == "cancelled"
         assert process_called is False
@@ -180,11 +193,10 @@ class TestBaseWorkflowCancellation:
                 after_called = True
 
         context = WorkflowContext(job_id=sample_job_id, job_data=sample_job_data)
-        # Return True only after process has been called
-        context._cancel_checker = lambda: cancel_after_process
 
         workflow = CancelAfterProcessWorkflow()
-        result = workflow.run(context)
+        # Return True only after process has been called
+        result = workflow.run(context, cancel_checker=lambda: cancel_after_process)
 
         assert result.status == "cancelled"
         assert after_called is False
@@ -206,10 +218,9 @@ class TestBaseWorkflowCancellation:
                 call_order.append("after")
 
         context = WorkflowContext(job_id=sample_job_id, job_data=sample_job_data)
-        context._cancel_checker = lambda: False
 
         workflow = FullLifecycleWorkflow()
-        result = workflow.run(context)
+        result = workflow.run(context, cancel_checker=lambda: False)
 
         assert call_order == ["before", "process", "after"]
         assert result.status == "completed"
@@ -224,10 +235,11 @@ class TestBaseWorkflowCancellation:
                 pass
 
         context = WorkflowContext(job_id=sample_job_id, job_data=sample_job_data)
-        context._cancel_checker = lambda: True  # Immediately cancelled
 
         workflow = SimpleWorkflow()
-        result = workflow.run(context)
+        result = workflow.run(
+            context, cancel_checker=lambda: True
+        )  # Immediately cancelled
 
         assert result.status == "cancelled"
         assert result.completed_at is not None

@@ -110,17 +110,26 @@ def create_job_endpoint(
         await repository.create(obj=job)
 
         # Queue processing task (use job.id as Celery task_id for revocation)
-        celery_app.send_task(
-            job_type,
-            args=[
-                str(job.id),
-                {
-                    "job_type": job_type,
-                    "job_data": job_data,
-                },
-            ],
-            task_id=str(job.id),
-        )
+        try:
+            await asyncio.to_thread(
+                celery_app.send_task,
+                job_type,
+                args=[
+                    str(job.id),
+                    {
+                        "job_type": job_type,
+                        "job_data": job_data,
+                    },
+                ],
+                task_id=str(job.id),
+            )
+        except Exception as e:
+            logger.error(f"Failed to queue job {job.id}: {e}")
+            # Let get_db's rollback undo the job creation -- no orphaned records
+            raise HTTPException(
+                status_code=HTTPStatus.SERVICE_UNAVAILABLE,
+                detail="Job queuing failed. Please try again later.",
+            )
 
         # Return acceptance response
         return Response(
@@ -273,7 +282,9 @@ async def cancel_job(
         update(Job)
         .where(Job.id == str(job_id))
         .where(Job.status.notin_(_NON_CANCELLABLE_STATUSES))
-        .values(status="cancelled", cancelled_at=datetime.now(), completed_at=datetime.now())
+        .values(
+            status="cancelled", cancelled_at=datetime.now(), completed_at=datetime.now()
+        )
     )
     await session.commit()  # Durably persist cancellation before side-effects
 
@@ -299,12 +310,12 @@ async def cancel_job(
         redis_client = get_redis_client()
         await asyncio.to_thread(request_cancel, redis_client, str(job_id))
     except Exception:
-        logger.warning(f"Failed to set Redis cancel flag for job {job_id}", exc_info=True)
+        logger.warning(
+            f"Failed to set Redis cancel flag for job {job_id}", exc_info=True
+        )
 
     try:
-        await asyncio.to_thread(
-            celery_app.control.revoke, str(job_id), terminate=False
-        )
+        await asyncio.to_thread(celery_app.control.revoke, str(job_id), terminate=False)
     except Exception:
         logger.warning(f"Failed to revoke Celery task for job {job_id}", exc_info=True)
 
