@@ -71,32 +71,6 @@ class TestCancellationFunctions:
 class TestWorkflowContextCancellation:
     """Tests for cancellation methods on WorkflowContext."""
 
-    def test_check_cancelled_returns_false_without_checker(
-        self, sample_job_id: str, sample_job_data: dict[str, Any]
-    ) -> None:
-        """check_cancelled() should return False when no checker is set."""
-        context = WorkflowContext(job_id=sample_job_id, job_data=sample_job_data)
-
-        assert context.check_cancelled() is False
-
-    def test_check_cancelled_delegates_to_checker(
-        self, sample_job_id: str, sample_job_data: dict[str, Any]
-    ) -> None:
-        """check_cancelled() should call and return the checker result."""
-        context = WorkflowContext(job_id=sample_job_id, job_data=sample_job_data)
-        context._cancel_checker = lambda: True
-
-        assert context.check_cancelled() is True
-
-    def test_check_cancelled_returns_false_from_checker(
-        self, sample_job_id: str, sample_job_data: dict[str, Any]
-    ) -> None:
-        """check_cancelled() should return False when checker returns False."""
-        context = WorkflowContext(job_id=sample_job_id, job_data=sample_job_data)
-        context._cancel_checker = lambda: False
-
-        assert context.check_cancelled() is False
-
     def test_cancel_sets_status_and_timestamp(
         self, sample_job_id: str, sample_job_data: dict[str, Any]
     ) -> None:
@@ -118,16 +92,56 @@ class TestWorkflowContextCancellation:
 
         assert any("cancelled" in log.lower() for log in context.logs)
 
-    def test_cancel_checker_excluded_from_model_dump(
+
+class TestBaseWorkflowIsCancelled:
+    """Tests for is_cancelled() on BaseWorkflow."""
+
+    def test_is_cancelled_returns_false_without_checker(self) -> None:
+        """is_cancelled() should return False when no checker is set."""
+
+        class SimpleWorkflow(BaseWorkflow):
+            def process(self, context: WorkflowContext) -> None:
+                pass
+
+        workflow = SimpleWorkflow()
+        assert workflow.is_cancelled() is False
+
+    def test_is_cancelled_delegates_to_checker(self) -> None:
+        """is_cancelled() should call and return the checker result."""
+
+        class SimpleWorkflow(BaseWorkflow):
+            def process(self, context: WorkflowContext) -> None:
+                pass
+
+        workflow = SimpleWorkflow()
+        workflow._cancel_checker = lambda: True
+        assert workflow.is_cancelled() is True
+
+    def test_is_cancelled_returns_false_from_checker(self) -> None:
+        """is_cancelled() should return False when checker returns False."""
+
+        class SimpleWorkflow(BaseWorkflow):
+            def process(self, context: WorkflowContext) -> None:
+                pass
+
+        workflow = SimpleWorkflow()
+        workflow._cancel_checker = lambda: False
+        assert workflow.is_cancelled() is False
+
+    def test_cancel_checker_cleaned_up_after_run(
         self, sample_job_id: str, sample_job_data: dict[str, Any]
     ) -> None:
-        """_cancel_checker should not appear in serialized output."""
+        """_cancel_checker should be cleaned up in finally block after run()."""
+
+        class SimpleWorkflow(BaseWorkflow):
+            def process(self, context: WorkflowContext) -> None:
+                pass
+
+        workflow = SimpleWorkflow()
         context = WorkflowContext(job_id=sample_job_id, job_data=sample_job_data)
-        context._cancel_checker = lambda: False
-
-        dumped = context.model_dump(mode="json")
-
-        assert "_cancel_checker" not in dumped
+        workflow.run(context, cancel_checker=lambda: False)
+        assert workflow._cancel_checker is None
+        assert workflow._on_progress is None
 
 
 # ---------- BaseWorkflow Cancellation ----------
@@ -153,11 +167,10 @@ class TestBaseWorkflowCancellation:
                 process_called = True
 
         context = WorkflowContext(job_id=sample_job_id, job_data=sample_job_data)
-        # Return True only after before_process has been called
-        context._cancel_checker = lambda: cancel_after_before
 
         workflow = CancelAfterBeforeWorkflow()
-        result = workflow.run(context)
+        # Return True only after before_process has been called
+        result = workflow.run(context, cancel_checker=lambda: cancel_after_before)
 
         assert result.status == "cancelled"
         assert process_called is False
@@ -180,11 +193,10 @@ class TestBaseWorkflowCancellation:
                 after_called = True
 
         context = WorkflowContext(job_id=sample_job_id, job_data=sample_job_data)
-        # Return True only after process has been called
-        context._cancel_checker = lambda: cancel_after_process
 
         workflow = CancelAfterProcessWorkflow()
-        result = workflow.run(context)
+        # Return True only after process has been called
+        result = workflow.run(context, cancel_checker=lambda: cancel_after_process)
 
         assert result.status == "cancelled"
         assert after_called is False
@@ -206,10 +218,9 @@ class TestBaseWorkflowCancellation:
                 call_order.append("after")
 
         context = WorkflowContext(job_id=sample_job_id, job_data=sample_job_data)
-        context._cancel_checker = lambda: False
 
         workflow = FullLifecycleWorkflow()
-        result = workflow.run(context)
+        result = workflow.run(context, cancel_checker=lambda: False)
 
         assert call_order == ["before", "process", "after"]
         assert result.status == "completed"
@@ -224,10 +235,11 @@ class TestBaseWorkflowCancellation:
                 pass
 
         context = WorkflowContext(job_id=sample_job_id, job_data=sample_job_data)
-        context._cancel_checker = lambda: True  # Immediately cancelled
 
         workflow = SimpleWorkflow()
-        result = workflow.run(context)
+        result = workflow.run(
+            context, cancel_checker=lambda: True
+        )  # Immediately cancelled
 
         assert result.status == "cancelled"
         assert result.completed_at is not None
@@ -253,13 +265,13 @@ class TestWorkerTaskCancellation:
     @patch("app.worker.tasks.get_redis_client")
     @patch("app.worker.tasks.clear_cancel")
     @patch("app.worker.tasks.db_session")
-    def test_cancelling_job_finalized_before_processing(
+    def test_cancelled_job_finalized_before_processing_with_cleanup(
         self, mock_db_session, mock_clear_cancel, mock_get_redis
     ) -> None:
-        """Worker should finalize as cancelled if job is 'cancelling' at pickup."""
+        """Worker should finalize as cancelled if job is 'cancelled' at pickup."""
         from app.worker.tasks import _process_job_impl
 
-        db_job = self._make_db_job("job-1", status="cancelling")
+        db_job = self._make_db_job("job-1", status="cancelled")
         mock_session = MagicMock()
         mock_repo = MagicMock()
         mock_repo.get.return_value = db_job
@@ -273,7 +285,6 @@ class TestWorkerTaskCancellation:
             result = _process_job_impl("job-1")
 
         assert result["status"] == "cancelled"
-        assert db_job.status == "cancelled"
         assert db_job.cancelled_at is not None
         mock_clear_cancel.assert_called_once_with(mock_redis, "job-1")
 
@@ -306,7 +317,7 @@ class TestWorkerTaskCancellation:
     @patch("app.worker.tasks.clear_cancel")
     @patch("app.worker.tasks.get_workflow")
     @patch("app.worker.tasks.db_session")
-    def test_cancel_detected_after_workflow_via_db_recheck_cancelling(
+    def test_cancel_detected_after_workflow_via_db_recheck(
         self,
         mock_db_session,
         mock_get_workflow,
@@ -314,7 +325,7 @@ class TestWorkerTaskCancellation:
         mock_is_cancelled,
         mock_get_redis,
     ) -> None:
-        """Worker should detect cancel via DB re-check when status is 'cancelling'."""
+        """Worker should detect cancel via DB re-check when status is 'cancelled'."""
         from app.worker.tasks import _process_job_impl
 
         db_job = self._make_db_job("job-3", status="processing")
@@ -337,17 +348,19 @@ class TestWorkerTaskCancellation:
         mock_workflow = NormalWorkflow()
         mock_get_workflow.return_value = mock_workflow
 
-        # Simulate DB refresh showing "cancelling"
+        # Simulate DB refresh showing "cancelled"
         def fake_refresh(obj):
-            obj.status = "cancelling"
+            obj.status = "cancelled"
 
         mock_session.refresh.side_effect = fake_refresh
+
+        # conditional_update_status should use cancelled status from context
+        mock_repo.conditional_update_status.return_value = True
 
         with patch("app.worker.tasks.GenericRepository", return_value=mock_repo):
             result = _process_job_impl("job-3")
 
         assert result["status"] == "cancelled"
-        assert db_job.status == "cancelled"
         mock_clear_cancel.assert_called_once()
 
     @patch("app.worker.tasks.get_redis_client")
@@ -355,7 +368,7 @@ class TestWorkerTaskCancellation:
     @patch("app.worker.tasks.clear_cancel")
     @patch("app.worker.tasks.get_workflow")
     @patch("app.worker.tasks.db_session")
-    def test_cancel_detected_after_workflow_via_db_recheck_cancelled(
+    def test_conditional_write_fails_when_job_cancelled_during_processing(
         self,
         mock_db_session,
         mock_get_workflow,
@@ -363,7 +376,7 @@ class TestWorkerTaskCancellation:
         mock_is_cancelled,
         mock_get_redis,
     ) -> None:
-        """Worker should detect cancel via DB re-check when status is 'cancelled'."""
+        """When conditional write fails (job cancelled externally), worker should log warning."""
         from app.worker.tasks import _process_job_impl
 
         db_job = self._make_db_job("job-4", status="processing")
@@ -383,18 +396,22 @@ class TestWorkerTaskCancellation:
 
         mock_get_workflow.return_value = NormalWorkflow()
 
-        # Simulate DB refresh showing "cancelled" (endpoint sets it directly now)
+        # DB re-check shows cancelled (triggers context.cancel())
+        # Then conditional write fails (because endpoint already set it to cancelled)
+        refresh_count = [0]
+
         def fake_refresh(obj):
+            refresh_count[0] += 1
             obj.status = "cancelled"
 
         mock_session.refresh.side_effect = fake_refresh
+        mock_repo.conditional_update_status.return_value = False
 
         with patch("app.worker.tasks.GenericRepository", return_value=mock_repo):
             result = _process_job_impl("job-4")
 
         assert result["status"] == "cancelled"
-        assert db_job.status == "cancelled"
-        mock_clear_cancel.assert_called_once()
+        mock_repo.conditional_update_status.assert_called_once()
 
     @patch("app.worker.tasks.get_redis_client")
     @patch("app.worker.tasks.clear_cancel")
@@ -417,9 +434,9 @@ class TestWorkerTaskCancellation:
         mock_redis = MagicMock()
         mock_get_redis.return_value = mock_redis
 
-        # Simulate refresh showing status changed to "cancelling" by the cancel endpoint
+        # Simulate refresh showing status changed to "cancelled" by the cancel endpoint
         def fake_refresh(obj):
-            obj.status = "cancelling"
+            obj.status = "cancelled"
 
         mock_session.refresh.side_effect = fake_refresh
 
@@ -430,3 +447,46 @@ class TestWorkerTaskCancellation:
         assert db_job.status == "cancelled"
         assert db_job.cancelled_at is not None
         mock_clear_cancel.assert_called_once_with(mock_redis, "job-5")
+
+    @patch("app.worker.tasks.get_redis_client")
+    @patch("app.worker.tasks.is_cancelled")
+    @patch("app.worker.tasks.get_workflow")
+    @patch("app.worker.tasks.db_session")
+    def test_exception_handler_uses_conditional_write(
+        self, mock_db_session, mock_get_workflow, mock_is_cancelled, mock_get_redis
+    ) -> None:
+        """Exception handler should use conditional write to avoid overwriting cancelled status."""
+        from app.worker.tasks import _process_job_impl
+
+        db_job = self._make_db_job("job-6", status="pending")
+        mock_session = MagicMock()
+        mock_repo = MagicMock()
+        mock_repo.get.return_value = db_job
+        # First call (pending→processing) succeeds, second call (processing→failed) fails
+        mock_repo.conditional_update_status.side_effect = [True, False]
+
+        mock_db_session.return_value = iter([mock_session])
+        mock_redis = MagicMock()
+        mock_get_redis.return_value = mock_redis
+        mock_is_cancelled.return_value = False
+
+        # Mock workflow whose run() raises (simulates crash outside BaseWorkflow catch)
+        mock_workflow = MagicMock()
+        mock_workflow.run.side_effect = RuntimeError("something broke")
+        mock_get_workflow.return_value = mock_workflow
+
+        # Simulate refresh showing cancelled (endpoint set it during processing)
+        def fake_refresh(obj):
+            obj.status = "cancelled"
+
+        mock_session.refresh.side_effect = fake_refresh
+
+        with patch("app.worker.tasks.GenericRepository", return_value=mock_repo):
+            result = _process_job_impl("job-6")
+
+        assert result["status"] == "failed"
+        # Verify conditional write was attempted: first pending→processing, then processing→failed
+        assert mock_repo.conditional_update_status.call_count == 2
+        last_call = mock_repo.conditional_update_status.call_args_list[1]
+        assert last_call[1]["from_status"] == "processing"
+        assert last_call[1]["to_status"] == "failed"

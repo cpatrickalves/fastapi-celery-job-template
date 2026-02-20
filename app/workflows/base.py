@@ -7,7 +7,7 @@ the execution flow automatically.
 """
 
 from abc import ABC, abstractmethod
-from typing import Optional, Type
+from typing import Callable, Optional, Type
 
 from pydantic import BaseModel
 
@@ -24,6 +24,7 @@ class BaseWorkflow(ABC):
     - Optional hooks: before_process, after_process, on_error
     - Schema validation for job data
     - Error handling and status tracking
+    - Cancellation checking via `self.is_cancelled()` inside `process()`
 
     Example:
         class MyWorkflow(BaseWorkflow):
@@ -37,8 +38,21 @@ class BaseWorkflow(ABC):
     """
 
     job_schema: Optional[Type[BaseModel]] = None
+    _cancel_checker: Callable[[], bool] | None = None
+    _on_progress: Callable[[float, str | None], None] | None = None
 
-    def run(self, context: WorkflowContext) -> WorkflowContext:
+    def is_cancelled(self) -> bool:
+        """Check if cancellation was requested. Call this inside process() for long-running operations."""
+        if self._cancel_checker is not None:
+            return self._cancel_checker()
+        return False
+
+    def run(
+        self,
+        context: WorkflowContext,
+        cancel_checker: Callable[[], bool] | None = None,
+        on_progress: Callable[[float, str | None], None] | None = None,
+    ) -> WorkflowContext:
         """Execute the workflow with lifecycle hooks.
 
         This method orchestrates the full workflow execution:
@@ -50,14 +64,18 @@ class BaseWorkflow(ABC):
 
         Args:
             context: The workflow context containing job data
+            cancel_checker: Optional callback to check if cancellation was requested
+            on_progress: Optional callback to persist progress updates
 
         Returns:
             WorkflowContext: The updated context with results or error
         """
-        context.status = "processing"
-        context.log(f"Starting workflow: {self.__class__.__name__}")
-
+        self._cancel_checker = cancel_checker
+        self._on_progress = on_progress
         try:
+            context.status = "processing"
+            context.log(f"Starting workflow: {self.__class__.__name__}")
+
             # Validate job data if schema is defined
             if self.job_schema:
                 self._validate_job(context)
@@ -65,13 +83,13 @@ class BaseWorkflow(ABC):
             # Execute lifecycle
             self.before_process(context)
 
-            if context.check_cancelled():
+            if self.is_cancelled():
                 context.cancel()
                 return context
 
             self.process(context)
 
-            if context.check_cancelled():
+            if self.is_cancelled():
                 context.cancel()
                 return context
 
@@ -83,10 +101,15 @@ class BaseWorkflow(ABC):
                 context.log(f"Workflow completed: {self.__class__.__name__}")
 
         except Exception as e:
-            error_msg = f"{type(e).__name__}: {str(e)}"
-            logger.exception(f"Workflow failed: {error_msg}")
-            context.fail(error_msg)
-            self.on_error(context, e)
+            if context.status != "cancelled":
+                error_msg = f"{type(e).__name__}: {str(e)}"
+                logger.exception(f"Workflow failed: {error_msg}")
+                context.fail(error_msg)
+                self.on_error(context, e)
+
+        finally:
+            self._cancel_checker = None
+            self._on_progress = None
 
         return context
 

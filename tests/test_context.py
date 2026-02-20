@@ -178,19 +178,6 @@ class TestWorkflowContextProgress:
         assert any("75.0%" in log for log in context.logs)
         assert any("Almost there" in log for log in context.logs)
 
-    def test_set_progress_calls_callback(
-        self, sample_job_id: str, sample_job_data: dict[str, Any]
-    ) -> None:
-        """set_progress() should invoke _on_progress callback."""
-        calls: list[tuple[float, str | None]] = []
-
-        context = WorkflowContext(job_id=sample_job_id, job_data=sample_job_data)
-        context._on_progress = lambda v, m: calls.append((v, m))
-
-        context.set_progress(50.0, "test")
-
-        assert calls == [(50.0, "test")]
-
     def test_set_progress_without_callback_does_not_error(
         self, sample_job_id: str, sample_job_data: dict[str, Any]
     ) -> None:
@@ -210,18 +197,17 @@ class TestWorkflowContextProgress:
         assert context.progress == 0.0
         assert context.progress_message is None
 
-    def test_callback_excluded_from_model_dump(
+    def test_progress_included_in_model_dump(
         self, sample_job_id: str, sample_job_data: dict[str, Any]
     ) -> None:
-        """_on_progress callback should not appear in serialized output."""
+        """Progress fields should appear in serialized output."""
         context = WorkflowContext(job_id=sample_job_id, job_data=sample_job_data)
-        context._on_progress = lambda v, m: None
+        context.set_progress(50.0, "halfway")
 
         dumped = context.model_dump(mode="json")
 
-        assert "_on_progress" not in dumped
-        assert "progress" in dumped
-        assert "progress_message" in dumped
+        assert dumped["progress"] == 50.0
+        assert dumped["progress_message"] == "halfway"
 
 
 class TestWorkflowContextLogging:

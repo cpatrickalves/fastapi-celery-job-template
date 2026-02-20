@@ -20,7 +20,7 @@ from http import HTTPStatus
 from typing import Any, Callable, Type
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -110,17 +110,26 @@ def create_job_endpoint(
         await repository.create(obj=job)
 
         # Queue processing task (use job.id as Celery task_id for revocation)
-        celery_app.send_task(
-            job_type,
-            args=[
-                str(job.id),
-                {
-                    "job_type": job_type,
-                    "job_data": job_data,
-                },
-            ],
-            task_id=str(job.id),
-        )
+        try:
+            await asyncio.to_thread(
+                celery_app.send_task,
+                job_type,
+                args=[
+                    str(job.id),
+                    {
+                        "job_type": job_type,
+                        "job_data": job_data,
+                    },
+                ],
+                task_id=str(job.id),
+            )
+        except Exception as e:
+            logger.error(f"Failed to queue job {job.id}: {e}")
+            # Let get_db's rollback undo the job creation -- no orphaned records
+            raise HTTPException(
+                status_code=HTTPStatus.SERVICE_UNAVAILABLE,
+                detail="Job queuing failed. Please try again later.",
+            )
 
         # Return acceptance response
         return Response(
@@ -245,20 +254,36 @@ _NON_CANCELLABLE_STATUSES = {"completed", "failed", "cancelled"}
     response_model=CancelJobResponse,
     tags=["Jobs"],
     summary="Cancel a job",
-    description="Cancel a pending or running job. Returns 409 if the job is already completed, failed, or cancelled.",
+    description=(
+        "Cancel a pending or running job. Use `force=true` to send SIGTERM to the worker "
+        "process (last resort for stuck tasks). Returns 409 if the job is already in a terminal state."
+    ),
 )
 async def cancel_job(
     job_id: UUID,
+    force: bool = Query(
+        default=False,
+        description=(
+            "Force-terminate the worker process via SIGTERM. Use only as a last resort "
+            "for stuck tasks -- this kills the worker process, not the task, and may "
+            "affect other work on the same worker."
+        ),
+    ),
     session: AsyncSession = Depends(get_db),
 ) -> CancelJobResponse:
     """Cancel a pending or running job.
 
-    Uses terminate=True to send SIGTERM to the worker process, ensuring
-    the job actually stops. The endpoint finalizes the status to
-    "cancelled" directly since the terminated worker can't update the DB.
+    By default, uses cooperative cancellation: sets the DB status, a Redis flag,
+    and revokes the Celery task. Running tasks detect cancellation via Redis flag
+    checks between workflow lifecycle hooks.
+
+    With force=True, additionally sends SIGTERM to the worker process. This is a
+    last resort for tasks that ignore cooperative cancellation -- it kills the
+    worker OS process, not the individual task.
 
     Args:
         job_id: The UUID of the job to cancel
+        force: If True, send SIGTERM to terminate the worker process
         session: Database session injected by FastAPI dependency
 
     Returns:
@@ -271,10 +296,12 @@ async def cancel_job(
     result = await session.execute(
         update(Job)
         .where(Job.id == str(job_id))
-        .where(Job.status.notin_(_NON_CANCELLABLE_STATUSES | {"cancelling"}))
-        .values(status="cancelled", cancelled_at=datetime.now())
+        .where(Job.status.notin_(_NON_CANCELLABLE_STATUSES))
+        .values(
+            status="cancelled", cancelled_at=datetime.now(), completed_at=datetime.now()
+        )
     )
-    await session.flush()
+    await session.commit()  # Durably persist cancellation before side-effects
 
     if result.rowcount == 0:
         # Determine why: 404, idempotent, or 409
@@ -285,21 +312,36 @@ async def cancel_job(
                 status_code=HTTPStatus.NOT_FOUND,
                 detail=f"Job with id '{job_id}' not found",
             )
-        if job.status in ("cancelling", "cancelled"):
+        if job.status == "cancelled":
             return CancelJobResponse(job_id=str(job.id), status="cancelled")
         raise HTTPException(
             status_code=HTTPStatus.CONFLICT,
-            detail=f"Job with status '{job.status}' cannot be cancelled",
+            detail="Job cannot be cancelled",
         )
 
-    # Set Redis cancellation flag as safety net for worker (sync call → thread)
-    redis_client = get_redis_client()
-    await asyncio.to_thread(request_cancel, redis_client, str(job_id))
+    # Best-effort: set Redis flag + revoke Celery task
+    # If these fail, the worker's post-workflow DB re-check catches the cancellation
+    try:
+        redis_client = get_redis_client()
+        await asyncio.to_thread(request_cancel, redis_client, str(job_id))
+    except Exception:
+        logger.warning(
+            f"Failed to set Redis cancel flag for job {job_id}", exc_info=True
+        )
 
-    # Revoke + terminate the Celery task
-    logger.info(f"Cancelling job {job_id}: revoking task with SIGTERM")
-    await asyncio.to_thread(
-        celery_app.control.revoke, str(job_id), terminate=True, signal="SIGTERM"
-    )
+    try:
+        if force:
+            logger.warning(
+                f"Force-cancelling job {job_id}: sending SIGTERM to worker process"
+            )
+            await asyncio.to_thread(
+                celery_app.control.revoke, str(job_id), terminate=True, signal="SIGTERM"
+            )
+        else:
+            await asyncio.to_thread(
+                celery_app.control.revoke, str(job_id), terminate=False
+            )
+    except Exception:
+        logger.warning(f"Failed to revoke Celery task for job {job_id}", exc_info=True)
 
     return CancelJobResponse(job_id=str(job_id), status="cancelled")

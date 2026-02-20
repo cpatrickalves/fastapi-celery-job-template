@@ -7,9 +7,9 @@ results, logging, and status tracking.
 """
 
 from datetime import datetime
-from typing import Any, Callable
+from typing import Any
 
-from pydantic import BaseModel, Field, PrivateAttr
+from pydantic import BaseModel, Field
 
 
 class WorkflowContext(BaseModel):
@@ -45,9 +45,6 @@ class WorkflowContext(BaseModel):
     progress: float = 0.0
     progress_message: str | None = None
 
-    _on_progress: Callable[[float, str | None], None] | None = PrivateAttr(default=None)
-    _cancel_checker: Callable[[], bool] | None = PrivateAttr(default=None)
-
     def log(self, message: str) -> None:
         """Add a log message to the context.
 
@@ -82,9 +79,6 @@ class WorkflowContext(BaseModel):
         self.progress_message = message
         self.log(f"Progress: {value:.1f}%" + (f" - {message}" if message else ""))
 
-        if self._on_progress is not None:
-            self._on_progress(value, message)
-
     def set_error(self, error: str) -> None:
         """Set an error message and mark status as failed.
 
@@ -107,16 +101,6 @@ class WorkflowContext(BaseModel):
         """
         self.set_error(error)
         self.completed_at = datetime.now()
-
-    def check_cancelled(self) -> bool:
-        """Check if a cancellation has been requested for this job.
-
-        Returns:
-            True if the job should be cancelled, False otherwise.
-        """
-        if self._cancel_checker is not None:
-            return self._cancel_checker()
-        return False
 
     def cancel(self) -> None:
         """Mark the context as cancelled by user request."""
